@@ -10,9 +10,9 @@ MultispectrAll is a simple tool for visualizing and processing multispectral ima
 
 
 <p align="center">
-    <a href="https://ibb.co/j8QjMmz"><img src="https://i.ibb.co/vcTMPph/pix2vox-principle.png" alt="pix2vox-principle" border="0"></a>
+    <a href="https://ibb.co/N15fkBk"><img src="https://i.ibb.co/6vzGpCp/multi.png" alt="multi" border="0"></a>
     
-    Plotting color channels as 'voxel' maps
+    Processing multispectral image, from a folder
 </p>
 
 
