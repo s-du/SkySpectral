@@ -10,9 +10,51 @@ from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 from PySide6.QtUiTools import QUiLoader
+from scipy.optimize import minimize, basinhopping, differential_evolution
 
 
-def createLineIterator(P1, P2, img):
+def func(theta, ref, target):
+    y_dist = int(theta[0]*100)
+    x_dist = int(theta[1]*100)
+    h,w = ref.shape
+
+    print(f'theta:{theta}')
+
+    # Slide the image
+    rows, cols = target.shape
+    slid_image = np.zeros_like(target)
+
+    if x_dist > 0:
+        x_end = min(cols, cols - x_dist)
+        x_start = max(0, x_dist)
+    else:
+        x_end = min(cols, cols + x_dist)
+        x_start = max(0, -x_dist)
+
+    if y_dist > 0:
+        y_end = min(rows, rows - y_dist)
+        y_start = max(0, y_dist)
+    else:
+        y_end = min(rows, rows + y_dist)
+        y_start = max(0, -y_dist)
+
+    slid_image[y_start:y_start + y_end, x_start:x_start + x_end] = target[:y_end, :x_end]
+
+    # create lines
+    lines_ref = create_lines(ref)
+    lines_target = create_lines(slid_image)
+
+    # compute difference
+    diff = cv2.subtract(lines_ref, lines_target)
+    err = np.sum(diff ** 2)
+    mse = err / (float(h * w))
+
+    print(f'mse is {mse}')
+
+    return mse
+
+
+def create_line_iterator(P1, P2, img):
     """
     Source: https://stackoverflow.com/questions/32328179/opencv-3-0-lineiterator
     Produces and array that consists of the coordinates and intensities of each pixel in a line between two points
@@ -85,6 +127,116 @@ def createLineIterator(P1, P2, img):
     itbuffer[:, 2] = img[itbuffer[:, 1].astype(int), itbuffer[:, 0].astype(int)]
 
     return itbuffer
+
+
+def create_lines(cv_img):
+    img_gray = cv_img
+
+    # Blur the image for better edge detection
+    img_blur = cv2.GaussianBlur(img_gray, (5, 5), 0)
+
+    scale = 1
+    delta = 0
+    ddepth = cv2.CV_16S
+    grad_x = cv2.Sobel(img_blur, cv2.CV_64F, 1, 0, ksize=5, borderType=cv2.BORDER_DEFAULT)
+    grad_y = cv2.Sobel(img_blur, cv2.CV_64F, 0, 1, ksize=5, borderType=cv2.BORDER_DEFAULT)
+
+    abs_grad_x = cv2.convertScaleAbs(grad_x)
+    abs_grad_y = cv2.convertScaleAbs(grad_y)
+
+    grad = np.sqrt(grad_x ** 2 + grad_y ** 2)
+    grad_norm = (grad * 255 / grad.max()).astype(np.uint8)
+
+    # Display the image in a window named "Image"
+    # cv2.imshow('Image', grad_norm)
+
+    # Wait indefinitely for a key press (0 means wait indefinitely)
+    # cv2.waitKey(0)
+
+    # Close all OpenCV windows
+    cv2.destroyAllWindows()
+
+    return grad_norm
+
+
+class ClickableGraphicsView(QGraphicsView):
+
+    # Create a custom signal that will emit the clicked point
+    pointClicked = Signal(QPointF)
+
+    def mousePressEvent(self, event):
+        # Emit the clicked point in scene coordinates
+        self.pointClicked.emit(self.mapToScene(event.pos()))
+        super().mousePressEvent(event)
+
+class AlignmentWindow(QDialog):
+    def __init__(self, ref_img, target_img):
+        super().__init__()
+        self.setWindowTitle("Manual Image Alignment")
+        self.showMaximized()
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+
+
+        self.ref_img = QImage(ref_img)
+        self.target_img = QImage(target_img)
+
+        self.ref_img_path = ref_img
+        self.target_img_path = target_img
+
+        self.ref_points = []
+        self.target_points = []
+
+        self.ref_view = self.create_graphics_view(self.ref_img)
+        self.target_view = self.create_graphics_view(self.target_img)
+
+        self.layout.addWidget(self.ref_view)
+        self.layout.addWidget(self.target_view)
+
+        # Controls
+        control_layout = QVBoxLayout()
+        self.ok_button = QPushButton("OK")
+        self.ok_button.clicked.connect(self.accept)
+        control_layout.addWidget(self.ok_button)
+        self.layout.addLayout(control_layout)
+
+    def create_graphics_view(self, img):
+        scene = QGraphicsScene()
+        view = ClickableGraphicsView(scene)
+        pixmap = QPixmap.fromImage(img)
+        scene.addPixmap(pixmap)
+        view.pointClicked.connect(lambda point, s=scene: self.on_image_click(point, s))
+        return view
+
+    def on_image_click(self, point, scene):
+        # point is now directly in scene's coordinates
+        if len(self.ref_points) < 5 and scene == self.ref_view.scene():
+            self.ref_points.append((point.x(), point.y()))
+            self.add_point_marker(scene, point, len(self.ref_points))
+        elif len(self.target_points) < 5 and scene == self.target_view.scene():
+            self.target_points.append((point.x(), point.y()))
+            self.add_point_marker(scene, point, len(self.target_points))
+
+    def add_point_marker(self, scene, point, number):
+        color = QColor(Qt.red)
+        scene.addEllipse(point.x() - 5, point.y() - 5, 10, 10, QPen(color), color)
+        text_item = scene.addText(str(number))
+        text_item.setDefaultTextColor(Qt.red)
+        text_item.setPos(point.x() + 10, point.y() - 10)
+
+    def get_aligned_image(self):
+        # Compute homography using the selected points
+        print(np.array(self.target_points))
+        print(np.array(self.target_points))
+
+        H, _ = cv2.findHomography(np.array(self.target_points), np.array(self.ref_points), cv2.RANSAC)
+
+        # Warp the target image to the reference image
+        target_img = cv2.imread(self.target_img_path)
+        aligned = cv2.warpPerspective(target_img, H, (self.ref_img.width(), self.ref_img.height()))
+
+        return aligned
+
 
 
 class PhotoViewer(QGraphicsView):
@@ -396,7 +548,7 @@ class PhotoViewer(QGraphicsView):
                 p1 = np.array([int(self.origin.x()), int(self.origin.y())])
                 p2 = np.array([int(self.new_coord.x()), int(self.new_coord.y())])
                 print(p1,p2)
-                line_values = createLineIterator(p1, p2, self.height_values)
+                line_values = create_line_iterator(p1, p2, self.height_values)
 
                 self.line_values_final = line_values[:,2]
 
@@ -457,6 +609,9 @@ class ImageProcessingApp(QMainWindow):
         self.imageviewer = PhotoViewer(self)
         self.layout.addWidget(self.imageviewer)
 
+        self.align_button = QPushButton("Align This Shot")
+        self.align_button.clicked.connect(self.align_images_manual)
+        self.layout.addWidget(self.align_button)
 
         central_widget = QWidget()
         central_widget.setLayout(self.layout)
@@ -534,6 +689,111 @@ class ImageProcessingApp(QMainWindow):
 
         pixmap = QPixmap.fromImage(q_img)
         self.imageviewer.setPhoto(pixmap=pixmap)
+
+
+    def align_images_manual(self):
+        ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
+
+        for i in range(2, 6):  # Start from 2 since 1 is the reference
+            target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
+
+
+            alignment_window = AlignmentWindow(ref_img_path, target_img_path)
+            if alignment_window.exec_() == QDialog.Accepted:
+                aligned_image = alignment_window.get_aligned_image()
+
+                save_path = os.path.splitext(target_img_path)[0] + "_aligned.tif"
+                cv2.imwrite(save_path, aligned_image)
+
+
+    def align_images_orb(self, ref, target):
+        # Convert images to 8-bit for SIFT
+        ref = cv2.normalize(ref, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+        target = cv2.normalize(target, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+        orb_detector = cv2.ORB_create(5000)
+
+        kp1, d1 = orb_detector.detectAndCompute(ref, None)
+        kp2, d2 = orb_detector.detectAndCompute(target, None)
+
+        # Match features between the two images.
+        # We create a Brute Force matcher with
+        # Hamming distance as measurement mode.
+        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+        # Match the two sets of descriptors.
+        matches = list(matcher.match(d1, d2))
+
+        # Sort matches on the basis of their Hamming distance.
+        matches.sort(key=lambda x: x.distance)
+
+        # Take the top 90 % matches forward.
+        matches = matches[:int(len(matches) * 0.9)]
+        no_of_matches = len(matches)
+
+        # Define empty matrices of shape no_of_matches * 2.
+        p1 = np.zeros((no_of_matches, 2))
+        p2 = np.zeros((no_of_matches, 2))
+
+        for i in range(len(matches)):
+            p1[i, :] = kp1[matches[i].queryIdx].pt
+            p2[i, :] = kp2[matches[i].trainIdx].pt
+
+        # Find the homography matrix.
+        homography, mask = cv2.findHomography(p1, p2, cv2.RANSAC)
+
+        # Use this matrix to transform the
+        # colored image wrt the reference image.
+        height, width = target.shape
+        aligned = cv2.warpPerspective(target,
+                                              homography, (width, height))
+
+        return aligned
+
+
+    def align_current_shot(self):
+        ref_image_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
+        ref_image = cv2.imread(ref_image_path, cv2.IMREAD_UNCHANGED)
+
+        for i in range(2, 5):  # Start from 2 since 1 is the reference
+            target_image_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
+            target_image = cv2.imread(target_image_path, cv2.IMREAD_UNCHANGED)
+
+            self.align_images_lines(ref_image, target_image, target_image_path)
+
+
+    def align_images_lines(self, ref, target, dest_path):
+        res = differential_evolution(func, ((-1, 1), (-1, 1)), maxiter=50, args=(ref,target,))
+
+        print(res)
+        print(res.x)
+
+        y_dist = int(res.x[0])
+        x_dist = int(res.x[1])
+
+        # Slide the image
+        rows, cols = target.shape
+        slid_image = np.zeros_like(target)
+
+        if x_dist > 0:
+            x_end = min(cols, cols - x_dist)
+            x_start = max(0, x_dist)
+        else:
+            x_end = min(cols, cols + x_dist)
+            x_start = max(0, -x_dist)
+
+        if y_dist > 0:
+            y_end = min(rows, rows - y_dist)
+            y_start = max(0, y_dist)
+        else:
+            y_end = min(rows, rows + y_dist)
+            y_start = max(0, -y_dist)
+
+        slid_image[y_start:y_start + y_end, x_start:x_start + x_end] = target[:y_end, :x_end]
+
+        save_path = os.path.splitext(dest_path)[0] + "_aligned.tif"
+        cv2.imwrite(save_path, slid_image)
+
 
 
 if __name__ == "__main__":
