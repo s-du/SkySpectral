@@ -601,7 +601,51 @@ class ImageProcessingApp(QMainWindow):
         self.layout.addWidget(self.palette_label)
 
         self.palette_combobox = QComboBox()
-        self.palettes = sorted(plt.colormaps())
+        # self.palettes = sorted(plt.colormaps())
+        self.palettes = [
+            'Greys',
+            'Greys_r',
+            'Spectral',
+            'Spectral_r',
+            'afmhot',
+            'afmhot_r',
+            'bwr',
+            'bwr_r',
+            'coolwarm',
+            'coolwarm_r',
+            'gnuplot2',
+            'gnuplot2_r',
+            'inferno',
+            'inferno_r',
+            'jet',
+            'jet_r',
+            'magma',
+            'magma_r',
+            'nipy_spectral',
+            'nipy_spectral_r',
+            'plasma',
+            'plasma_r',
+            'rainbow',
+            'rainbow_r',
+            'seismic',
+            'seismic_r',
+            'turbo',
+            'turbo_r',
+            'twilight',
+            'twilight_r',
+            'viridis',
+            'viridis_r',
+            'BrBG',
+            'BrBG_r',
+            'PRGn',
+            'PRGn_r',
+            'RdBu',
+            'RdBu_r',
+            'RdGy',
+            'RdGy_r',
+            'RdYlBu',
+            'RdYlBu_r'
+        ]
         self.palette_combobox.addItems(self.palettes)
         self.palette_combobox.currentIndexChanged.connect(self.update_display)
         self.layout.addWidget(self.palette_combobox)
@@ -696,14 +740,19 @@ class ImageProcessingApp(QMainWindow):
 
         for i in range(2, 6):  # Start from 2 since 1 is the reference
             target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
-
-
             alignment_window = AlignmentWindow(ref_img_path, target_img_path)
             if alignment_window.exec_() == QDialog.Accepted:
                 aligned_image = alignment_window.get_aligned_image()
 
-                save_path = os.path.splitext(target_img_path)[0] + "_aligned.tif"
-                cv2.imwrite(save_path, aligned_image)
+                shot_name = f"ALIGNED_IMG_{self.selected_shot}"
+                aligned_folder_path = os.path.join(self.base_dir, shot_name)
+                if not os.path.exists(aligned_folder_path):
+                    os.mkdir(aligned_folder_path)
+
+                # Save the aligned image
+                aligned_filename = os.path.join(aligned_folder_path,
+                                                "{}_aligned_{}_aligned.tif".format(shot_name, i))
+                cv2.imwrite(aligned_filename, aligned_image)
 
 
     def align_images_orb(self, ref, target):
