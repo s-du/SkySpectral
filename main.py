@@ -159,14 +159,31 @@ def create_lines(cv_img):
 
 
 class MagnifyingGlass(QGraphicsEllipseItem):
-    def __init__(self, parent=None):
-        super().__init__(-50, -50, 100, 100, parent)  # Diameter of 100
+    def __init__(self, size=200, parent=None):
+        self._size = size
+        super().__init__(-self._size/2, -self._size/2, self._size, self._size, parent)
         self.setBrush(Qt.transparent)
         self.setPen(Qt.NoPen)
         self.pixmap_item = QGraphicsPixmapItem(self)
-        self.pixmap_item.setPos(-50, -50)
+        self.pixmap_item.setPos(-self._size/2, -self._size/2)
+        self.setZValue(1)
 
     def set_pixmap(self, pixmap):
+        # Create an elliptical mask for the pixmap
+        mask_image = QImage(pixmap.size(), QImage.Format_Alpha8)
+        mask_image.fill(Qt.transparent)
+
+        painter = QPainter(mask_image)
+        painter.setBrush(Qt.white)
+        painter.drawEllipse(mask_image.rect())
+        painter.end()
+
+        # Convert QImage to QBitmap for PySide6
+        mask_bitmap = QBitmap.fromImage(mask_image)
+
+        pixmap.setMask(mask_bitmap)
+
+        # Set the masked pixmap to the pixmap item
         self.pixmap_item.setPixmap(pixmap)
 
 class ClickableGraphicsView(QGraphicsView):
@@ -184,15 +201,58 @@ class ClickableGraphicsView(QGraphicsView):
         self.setBackgroundBrush(QBrush(QColor(255, 255, 255)))
         self.setFrameShape(QFrame.NoFrame)
 
+        self.magnifying_glass_size = 300  # Adjust this value to change the size
+        self.magnifying_glass = MagnifyingGlass(self.magnifying_glass_size)
+        self.scene().addItem(self.magnifying_glass)
+    def mouseMoveEvent(self, event):
+        # Position in scene coordinates
+        scene_pos = self.mapToScene(event.pos())
+
+        # Temporarily hide the magnifying glass to avoid rendering it
+        self.magnifying_glass.hide()
+
+        # Render the scene into an image
+        scene_image = QImage(self.scene().sceneRect().size().toSize(), QImage.Format_ARGB32)
+        scene_image.fill(Qt.transparent)
+        painter = QPainter(scene_image)
+        self.scene().render(painter)
+        painter.end()
+
+        # Adjust these values for desired magnification
+        magnify_factor = 3
+
+        # Calculate the dimensions of the sub-pixmap to grab
+        grab_width = self.magnifying_glass_size // magnify_factor
+        grab_height = self.magnifying_glass_size // magnify_factor
+
+        # Calculate the top-left corner of the sub-pixmap to grab, such that the cursor is centered
+        grab_x = scene_pos.x() - grab_width / 2
+        grab_y = scene_pos.y() - grab_height / 2
+
+        # Extract the portion of the rendered scene around the cursor
+        sub_image = scene_image.copy(grab_x, grab_y, grab_width, grab_height)
+
+        # Convert QImage to QPixmap and scale it to achieve magnification
+        magnified_pixmap = QPixmap.fromImage(sub_image).scaled(self.magnifying_glass_size, self.magnifying_glass_size,
+                                                               Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # Update the magnifying glass
+        self.magnifying_glass.setPos(scene_pos)
+        self.magnifying_glass.set_pixmap(magnified_pixmap)
+        self.magnifying_glass.show()
+
     def mousePressEvent(self, event):
         # Emit the clicked point in scene coordinates
         self.pointClicked.emit(self.mapToScene(event.pos()))
         super().mousePressEvent(event)
 
     def wheelEvent(self, event):
+        """
         if event.angleDelta().y() > 0:
             self.resetTransform()
             self.scale(1.5, 1.5)
+        """
+        pass
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
