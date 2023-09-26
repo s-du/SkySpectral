@@ -309,10 +309,14 @@ class AlignmentWindow(QDialog):
 
     def add_point_marker(self, scene, point, number):
         color = QColor(Qt.red)
-        scene.addEllipse(point.x() - 5, point.y() - 5, 10, 10, QPen(color), color)
+        scene.addEllipse(point.x() - 10, point.y() - 10, 20, 20, QPen(color), color)
         text_item = scene.addText(str(number))
         text_item.setDefaultTextColor(Qt.red)
         text_item.setPos(point.x() + 10, point.y() - 10)
+
+        font = QFont()
+        font.setPointSize(13)  # Change 20 to your desired font size
+        text_item.setFont(font)
 
     def get_aligned_image(self):
         # Compute homography using the selected points
@@ -814,15 +818,18 @@ class ImageProcessingApp(QMainWindow):
         red_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_3.tif')
         green_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_2.tif')
         blue_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_1.tif')
+        rededge_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_5.tif')
+        nir_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_4.tif')
 
         red_channel_img = cv2.imread(red_path, cv2.IMREAD_GRAYSCALE)
+        re_channel_img = cv2.imread(rededge_path, cv2.IMREAD_GRAYSCALE)
+        nir_channel_img = cv2.imread(nir_path, cv2.IMREAD_GRAYSCALE)
         green_channel_img = cv2.imread(green_path, cv2.IMREAD_GRAYSCALE)
         blue_channel_img = cv2.imread(blue_path, cv2.IMREAD_GRAYSCALE)
 
         rgb_image = cv2.merge((red_channel_img, green_channel_img, blue_channel_img))
-        cv2.imshow('RGB Image', rgb_image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        regb_image = cv2.merge((re_channel_img, green_channel_img, blue_channel_img))
+        cir_image = cv2.merge((nir_channel_img, red_channel_img, blue_channel_img))
 
     def update_display(self):
         shot = self.selected_shot
@@ -871,7 +878,7 @@ class ImageProcessingApp(QMainWindow):
             os.mkdir(aligned_folder_path)
 
         # copy reference
-        dst_ref = os.path.join(aligned_folder_path, f"IMG_{self.selected_shot}_1.tif")
+        dst_ref = os.path.join(aligned_folder_path, f"aligned_1.tif")
         shutil.copyfile(ref_img_path, dst_ref)
 
         for i in range(2, 6):  # Start from 2 since 1 is the reference
