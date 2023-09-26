@@ -1,17 +1,16 @@
-import sys
-import os
 import cv2
-
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
-
+import os
 from PySide6.QtCore import *
 from PySide6.QtGui import *
-from PySide6.QtWidgets import *
 from PySide6.QtUiTools import QUiLoader
-from scipy.optimize import minimize, basinhopping, differential_evolution
-
+from PySide6.QtWidgets import *
+import resources as res
+from scipy.optimize import basinhopping, differential_evolution, minimize
+import shutil
+import sys
 
 def func(theta, ref, target):
     y_dist = int(theta[0]*100)
@@ -159,15 +158,45 @@ def create_lines(cv_img):
     return grad_norm
 
 
+class MagnifyingGlass(QGraphicsEllipseItem):
+    def __init__(self, parent=None):
+        super().__init__(-50, -50, 100, 100, parent)  # Diameter of 100
+        self.setBrush(Qt.transparent)
+        self.setPen(Qt.NoPen)
+        self.pixmap_item = QGraphicsPixmapItem(self)
+        self.pixmap_item.setPos(-50, -50)
+
+    def set_pixmap(self, pixmap):
+        self.pixmap_item.setPixmap(pixmap)
+
 class ClickableGraphicsView(QGraphicsView):
 
     # Create a custom signal that will emit the clicked point
     pointClicked = Signal(QPointF)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setCursor(Qt.ArrowCursor)
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setBackgroundBrush(QBrush(QColor(255, 255, 255)))
+        self.setFrameShape(QFrame.NoFrame)
+
     def mousePressEvent(self, event):
         # Emit the clicked point in scene coordinates
         self.pointClicked.emit(self.mapToScene(event.pos()))
         super().mousePressEvent(event)
+
+    def wheelEvent(self, event):
+        if event.angleDelta().y() > 0:
+            self.resetTransform()
+            self.scale(1.5, 1.5)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.fitInView(self.sceneRect(), Qt.KeepAspectRatio)
 
 class AlignmentWindow(QDialog):
     def __init__(self, ref_img, target_img):
@@ -205,6 +234,7 @@ class AlignmentWindow(QDialog):
         view = ClickableGraphicsView(scene)
         pixmap = QPixmap.fromImage(img)
         scene.addPixmap(pixmap)
+        scene.setSceneRect(pixmap.rect())
         view.pointClicked.connect(lambda point, s=scene: self.on_image_click(point, s))
         return view
 
@@ -227,16 +257,24 @@ class AlignmentWindow(QDialog):
     def get_aligned_image(self):
         # Compute homography using the selected points
         print(np.array(self.target_points))
-        print(np.array(self.target_points))
+        print(np.array(self.ref_points))
+        rigid = False
 
-        H, _ = cv2.findHomography(np.array(self.target_points), np.array(self.ref_points), cv2.RANSAC)
+        # Estimate the rigid transformation
+        if rigid:
+            M, _ = cv2.estimateAffinePartial2D(np.array(self.target_points), np.array(self.ref_points), method=cv2.RANSAC)
+
+            # Convert the 2x3 matrix to 3x3 to use with warpPerspective
+            H = np.vstack([M, [0, 0, 1]])
+
+        else:
+            H, _ = cv2.estimateAffine2D(np.array(self.target_points), np.array(self.ref_points), method=cv2.RANSAC)
 
         # Warp the target image to the reference image
         target_img = cv2.imread(self.target_img_path)
-        aligned = cv2.warpPerspective(target_img, H, (self.ref_img.width(), self.ref_img.height()))
+        aligned = cv2.warpAffine(target_img, H, (self.ref_img.width(), self.ref_img.height()))
 
         return aligned
-
 
 
 class PhotoViewer(QGraphicsView):
@@ -603,8 +641,8 @@ class ImageProcessingApp(QMainWindow):
         self.palette_combobox = QComboBox()
         # self.palettes = sorted(plt.colormaps())
         self.palettes = [
-            'Greys',
             'Greys_r',
+            'Greys',
             'Spectral',
             'Spectral_r',
             'afmhot',
@@ -657,6 +695,10 @@ class ImageProcessingApp(QMainWindow):
         self.align_button.clicked.connect(self.align_images_manual)
         self.layout.addWidget(self.align_button)
 
+        self.see_composed_button = QPushButton("See Composed Images", self)
+        self.see_composed_button.setEnabled(False)
+        self.see_composed_button.clicked.connect(self.show_composed_shots)
+
         central_widget = QWidget()
         central_widget.setLayout(self.layout)
         self.setCentralWidget(central_widget)
@@ -692,10 +734,35 @@ class ImageProcessingApp(QMainWindow):
         pixmap = QPixmap.fromImage(q_img)
         return pixmap
 
+
     def shot_selected(self, item):
         # Load and display the shot corresponding to the clicked item
         self.selected_shot = item.text()
-        self.update_display()
+
+        if os.path.isdir(os.path.join(self.base_dir, self.selected_shot)):
+            self.see_composed_button.setEnabled(True)
+            self.selected_compo = item.text()
+            self.show_composed_shots()
+
+
+        else:
+            self.see_composed_button.setEnabled(False)
+            self.update_display()
+
+    def show_composed_shots(self):
+        # Load individual channel images
+        red_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_3.tif')
+        green_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_2.tif')
+        blue_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_1.tif')
+
+        red_channel_img = cv2.imread(red_path, cv2.IMREAD_GRAYSCALE)
+        green_channel_img = cv2.imread(green_path, cv2.IMREAD_GRAYSCALE)
+        blue_channel_img = cv2.imread(blue_path, cv2.IMREAD_GRAYSCALE)
+
+        rgb_image = cv2.merge((red_channel_img, green_channel_img, blue_channel_img))
+        cv2.imshow('RGB Image', rgb_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
     def update_display(self):
         shot = self.selected_shot
@@ -738,23 +805,32 @@ class ImageProcessingApp(QMainWindow):
     def align_images_manual(self):
         ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
 
+        shot_name = f"ALIGNED_IMG_{self.selected_shot}"
+        aligned_folder_path = os.path.join(self.base_dir, shot_name)
+        if not os.path.exists(aligned_folder_path):
+            os.mkdir(aligned_folder_path)
+
+        # copy reference
+        dst_ref = os.path.join(aligned_folder_path, f"IMG_{self.selected_shot}_1.tif")
+        shutil.copyfile(ref_img_path, dst_ref)
+
         for i in range(2, 6):  # Start from 2 since 1 is the reference
             target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
             alignment_window = AlignmentWindow(ref_img_path, target_img_path)
             if alignment_window.exec_() == QDialog.Accepted:
                 aligned_image = alignment_window.get_aligned_image()
 
-                shot_name = f"ALIGNED_IMG_{self.selected_shot}"
-                aligned_folder_path = os.path.join(self.base_dir, shot_name)
-                if not os.path.exists(aligned_folder_path):
-                    os.mkdir(aligned_folder_path)
-
                 # Save the aligned image
                 aligned_filename = os.path.join(aligned_folder_path,
-                                                "{}_aligned_{}_aligned.tif".format(shot_name, i))
+                                                "aligned_{}.tif".format(i))
                 cv2.imwrite(aligned_filename, aligned_image)
 
+        # add new folder element in the listview
+        folder_img = res.find('img/folder.png')
+        item = QListWidgetItem(QIcon(folder_img), shot_name)
+        self.shot_list.addItem(item)
 
+    # OLD METHODS
     def align_images_orb(self, ref, target):
         # Convert images to 8-bit for SIFT
         ref = cv2.normalize(ref, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
