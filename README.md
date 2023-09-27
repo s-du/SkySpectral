@@ -10,7 +10,7 @@ MultispectrAll is a simple tool for visualizing and processing multispectral ima
 
 
 <p align="center">
-    <a href="https://ibb.co/BZnNYqM"><img src="https://i.ibb.co/k8m1PQC/Capture-d-cran-2023-09-27-181906.png" alt="Capture-d-cran-2023-09-27-181906" border="0"></a>
+    <a href="https://ibb.co/pQkkp0W"><img src="https://i.ibb.co/3vPPHrf/Capture-d-cran-2023-09-27-181906.png" alt="Capture-d-cran-2023-09-27-181906" border="0"></a>
     
     Processing multispectral image, from a folder
 </p>
