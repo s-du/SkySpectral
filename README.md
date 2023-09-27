@@ -2,7 +2,7 @@
 A simple tool to process multispectral images from the Micasense Rededge P
 
 ## Introduction
-MultispectrAll is a simple tool for visualizing and processing multispectral imagery. It allows band-image alignement and various subimage combination.
+SkySPectral is a simple tool for visualizing and processing multispectral imagery. It allows band-image alignement and various subimage combination.
 
 \#Multispectral \#Open-CV \#Building diagnosis \#ImageProcessing 
 
