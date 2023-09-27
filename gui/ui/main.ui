@@ -283,6 +283,9 @@ QComboBox::down-arrow {
    </property>
   </action>
   <action name="actionPrepareAgisoft">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>PrepareAgisoft</string>
    </property>

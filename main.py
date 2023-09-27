@@ -116,7 +116,7 @@ class ImageProcessingApp(QMainWindow):
         self.actionAlignPoints.triggered.connect(self.align_images_manual)
         self.actionAlignArrows.triggered.connect(self.align_images_arrows)
         self.actionShowCompo.triggered.connect(self.show_composed_shots)
-        self.actionPrepareAgisoft.triggered.connect(self.show_composed_shots)
+        self.actionPrepareAgisoft.triggered.connect(self.prepare_agisoft)
 
         self.band_combobox.currentIndexChanged.connect(self.update_display)
         self.palette_combobox.currentIndexChanged.connect(self.update_display)
@@ -147,8 +147,40 @@ class ImageProcessingApp(QMainWindow):
         # enable actions
         self.actionAlignPoints.setEnabled(True)
         self.actionAlignArrows.setEnabled(True)
+        self.actionPrepareAgisoft.setEnabled(True)
         self.band_combobox.setEnabled(True)
         self.palette_combobox.setEnabled(True)
+
+    def prepare_agisoft(self):
+        # Create the 'for Agisoft' folder
+        agisoft_folder = os.path.join(self.base_dir, 'for_Agisoft')
+        os.makedirs(agisoft_folder, exist_ok=True)
+
+        # Band mapping
+        band_mapping = {
+            '1': 'Blue',
+            '2': 'Green',
+            '3': 'Red',
+            '4': 'NIR',
+            '5': 'RedEdge'
+        }
+
+        # For each image in the folder
+        for filename in os.listdir(self.base_dir):
+            if filename.endswith('.tif') and '_' in filename:
+                band_number = filename.split('_')[-1].split('.')[0]
+                band_name = band_mapping.get(band_number)
+
+                if band_name:
+                    # Create the band subfolder inside 'for Agisoft'
+                    band_folder = os.path.join(agisoft_folder, band_name)
+                    os.makedirs(band_folder, exist_ok=True)
+
+                    # Move the image to its respective band folder
+                    src_path = os.path.join(self.base_dir, filename)
+                    dst_path = os.path.join(band_folder, filename)
+                    shutil.move(src_path, dst_path)
+
 
     def generate_thumbnail(self, img_path):
         thumbnail_size = (64, 64)
