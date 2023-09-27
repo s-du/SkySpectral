@@ -1,4 +1,5 @@
 import cv2
+from gui import dialogs as dia
 from gui import widgets as wid
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
@@ -6,196 +7,11 @@ import numpy as np
 import os
 from PySide6.QtCore import *
 from PySide6.QtGui import *
-from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import *
 import resources as res
 from scipy.optimize import basinhopping, differential_evolution, minimize
 import shutil
 import sys
-
-def func(theta, ref, target):
-    y_dist = int(theta[0]*100)
-    x_dist = int(theta[1]*100)
-    h,w = ref.shape
-
-    print(f'theta:{theta}')
-
-    # Slide the image
-    rows, cols = target.shape
-    slid_image = np.zeros_like(target)
-
-    if x_dist > 0:
-        x_end = min(cols, cols - x_dist)
-        x_start = max(0, x_dist)
-    else:
-        x_end = min(cols, cols + x_dist)
-        x_start = max(0, -x_dist)
-
-    if y_dist > 0:
-        y_end = min(rows, rows - y_dist)
-        y_start = max(0, y_dist)
-    else:
-        y_end = min(rows, rows + y_dist)
-        y_start = max(0, -y_dist)
-
-    slid_image[y_start:y_start + y_end, x_start:x_start + x_end] = target[:y_end, :x_end]
-
-    # create lines
-    lines_ref = create_lines(ref)
-    lines_target = create_lines(slid_image)
-
-    # compute difference
-    diff = cv2.subtract(lines_ref, lines_target)
-    err = np.sum(diff ** 2)
-    mse = err / (float(h * w))
-
-    print(f'mse is {mse}')
-
-    return mse
-
-
-def create_lines(cv_img):
-    img_gray = cv_img
-
-    # Blur the image for better edge detection
-    img_blur = cv2.GaussianBlur(img_gray, (5, 5), 0)
-
-    scale = 1
-    delta = 0
-    ddepth = cv2.CV_16S
-    grad_x = cv2.Sobel(img_blur, cv2.CV_64F, 1, 0, ksize=5, borderType=cv2.BORDER_DEFAULT)
-    grad_y = cv2.Sobel(img_blur, cv2.CV_64F, 0, 1, ksize=5, borderType=cv2.BORDER_DEFAULT)
-
-    abs_grad_x = cv2.convertScaleAbs(grad_x)
-    abs_grad_y = cv2.convertScaleAbs(grad_y)
-
-    grad = np.sqrt(grad_x ** 2 + grad_y ** 2)
-    grad_norm = (grad * 255 / grad.max()).astype(np.uint8)
-
-    # Display the image in a window named "Image"
-    # cv2.imshow('Image', grad_norm)
-
-    # Wait indefinitely for a key press (0 means wait indefinitely)
-    # cv2.waitKey(0)
-
-    # Close all OpenCV windows
-    cv2.destroyAllWindows()
-
-    return grad_norm
-
-
-class ShowComposed(QDialog):
-    def __init__(self, img_paths, img_names, parent=None):
-        QDialog.__init__(self)
-        basepath = os.path.dirname(__file__)
-        basename = 'composed'
-        uifile = os.path.join(basepath, 'gui/ui/%s.ui' % basename)
-        wid.loadUi(uifile, self)
-
-        # combobox
-        self.img_paths = img_paths
-        self.comboBox_views.addItems(img_names)
-
-        self.viewer = wid.PhotoViewer()
-        self.verticalLayout.addWidget(self.viewer)
-
-        # button actions
-        self.buttonBox.accepted.connect(self.accept)
-        self.buttonBox.rejected.connect(self.reject)
-
-        self.comboBox_views.currentIndexChanged.connect(self.on_img_combo_change)
-
-    def on_img_combo_change(self):
-        i = self.comboBox_views.currentIndex()
-        img_path = self.img_paths[i]
-        self.viewer.setPhoto(QPixmap(img_path))
-
-
-class AlignmentWindow(QDialog):
-    def __init__(self, ref_img, target_img):
-        super().__init__()
-        self.setWindowTitle("Manual Image Alignment")
-        self.showMaximized()
-        self.layout = QHBoxLayout()
-        self.setLayout(self.layout)
-
-        self.ref_img = QImage(ref_img)
-        self.target_img = QImage(target_img)
-
-        self.ref_img_path = ref_img
-        self.target_img_path = target_img
-
-        self.ref_points = []
-        self.target_points = []
-
-        self.ref_view = self.create_graphics_view(self.ref_img)
-        self.target_view = self.create_graphics_view(self.target_img)
-
-        self.layout.addWidget(self.ref_view)
-        self.layout.addWidget(self.target_view)
-
-        # Controls
-        control_layout = QVBoxLayout()
-        self.ok_button = QPushButton("OK")
-        self.ok_button.clicked.connect(self.accept)
-        control_layout.addWidget(self.ok_button)
-        self.layout.addLayout(control_layout)
-
-    def create_graphics_view(self, img):
-        self.scene = QGraphicsScene()
-        view = wid.ClickableGraphicsView(self.scene)
-        pixmap = QPixmap.fromImage(img)
-        self.scene.addPixmap(pixmap)
-        self.scene.setSceneRect(pixmap.rect())
-        view.pointClicked.connect(lambda point, s=self.scene: self.on_image_click(point, s))
-        return view
-
-    def load_points(self, point_list):
-        self.ref_points = point_list
-        for point in point_list:
-            self.add_point_marker(self.scene, point, len(self.ref_points))
-
-    def on_image_click(self, point, scene):
-        # point is now directly in scene's coordinates
-        if len(self.ref_points) < 6 and scene == self.ref_view.scene():
-            self.ref_points.append((point.x(), point.y()))
-            self.add_point_marker(scene, point, len(self.ref_points))
-        elif len(self.target_points) < 6 and scene == self.target_view.scene():
-            self.target_points.append((point.x(), point.y()))
-            self.add_point_marker(scene, point, len(self.target_points))
-
-    def add_point_marker(self, scene, point, number):
-        color = QColor(Qt.cyan)
-        scene.addEllipse(point.x() - 5, point.y() - 5, 10, 10, QPen(color), color)
-        text_item = scene.addText(str(number))
-        text_item.setDefaultTextColor(Qt.cyan)
-        text_item.setPos(point.x() + 10, point.y() - 10)
-
-        font = QFont()
-        font.setPointSize(15)  # Change 20 to your desired font size
-        text_item.setFont(font)
-
-    def get_aligned_image(self):
-        # Compute homography using the selected points
-        print(np.array(self.target_points))
-        print(np.array(self.ref_points))
-        rigid = False
-
-        # Estimate the rigid transformation
-        if rigid:
-            M, _ = cv2.estimateAffinePartial2D(np.array(self.target_points), np.array(self.ref_points), method=cv2.RANSAC)
-
-            # Convert the 2x3 matrix to 3x3 to use with warpPerspective
-            H = np.vstack([M, [0, 0, 1]])
-
-        else:
-            H, _ = cv2.estimateAffine2D(np.array(self.target_points), np.array(self.ref_points), method=cv2.RANSAC)
-
-        # Warp the target image to the reference image
-        target_img = cv2.imread(self.target_img_path)
-        aligned = cv2.warpAffine(target_img, H, (self.ref_img.width(), self.ref_img.height()))
-
-        return aligned
 
 
 class ImageProcessingApp(QMainWindow):
@@ -221,6 +37,7 @@ class ImageProcessingApp(QMainWindow):
         self.shot_list.setIconSize(QSize(64, 64))  # Set the desired icon size
         self.shot_list.itemClicked.connect(self.shot_selected)
         self.layout.addWidget(self.shot_list)
+        self.selected_shot = ''
 
         # Band ComboBox and its label
         self.band_label = QLabel("Select Band:")
@@ -288,13 +105,18 @@ class ImageProcessingApp(QMainWindow):
         self.imageviewer = wid.PhotoViewer(self)
         self.layout.addWidget(self.imageviewer)
 
-        self.align_button = QPushButton("Align This Shot")
+        self.align_button = QPushButton("Align This Shot (points)")
         self.align_button.clicked.connect(self.align_images_manual)
         self.layout.addWidget(self.align_button)
+
+        self.align_button2 = QPushButton("Align This Shot (arrows)")
+        self.align_button2.clicked.connect(self.align_images_arrows)
+        self.layout.addWidget(self.align_button2)
 
         self.see_composed_button = QPushButton("See Composed Images", self)
         self.see_composed_button.setEnabled(False)
         self.see_composed_button.clicked.connect(self.show_composed_shots)
+        self.layout.addWidget(self.see_composed_button)
 
         central_widget = QWidget()
         central_widget.setLayout(self.layout)
@@ -340,8 +162,6 @@ class ImageProcessingApp(QMainWindow):
             self.see_composed_button.setEnabled(True)
             self.selected_compo = item.text()
             self.show_composed_shots()
-
-
         else:
             self.see_composed_button.setEnabled(False)
             self.update_display()
@@ -371,7 +191,7 @@ class ImageProcessingApp(QMainWindow):
         cv2.imwrite(out_regb_path, regb_image)
 
         # NIR R G image
-        cir_image = cv2.merge((nir_channel_img, red_channel_img, blue_channel_img))
+        cir_image = cv2.merge((nir_channel_img, red_channel_img, green_channel_img))
         out_cir_path = os.path.join(self.base_dir, self.selected_compo, 'cir.png')
         cv2.imwrite(out_cir_path, cir_image)
 
@@ -379,7 +199,7 @@ class ImageProcessingApp(QMainWindow):
         img_names = ['RGB', 'REGB', 'CIR']
         img_paths = [out_rgb_path, out_regb_path, out_cir_path]
 
-        dialog = ShowComposed(img_paths, img_names)
+        dialog = dia.ShowComposed(img_paths, img_names)
         if dialog.exec_():
             pass
 
@@ -420,6 +240,32 @@ class ImageProcessingApp(QMainWindow):
         pixmap = QPixmap.fromImage(q_img)
         self.imageviewer.setPhoto(pixmap=pixmap)
 
+    def align_images_arrows(self):
+        ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
+
+        shot_name = f"ALIGNED_IMG_{self.selected_shot}"
+        aligned_folder_path = os.path.join(self.base_dir, shot_name)
+        if not os.path.exists(aligned_folder_path):
+            os.mkdir(aligned_folder_path)
+
+        dst_ref = os.path.join(aligned_folder_path, f"aligned_1.tif")
+        shutil.copyfile(ref_img_path, dst_ref)
+
+        for i in range(2, 6):  # Start from 2 since 1 is the reference
+            target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
+            alignment_window = dia.AlignmentWindowArrow(ref_img_path, target_img_path)
+            if alignment_window.exec_() == QDialog.Accepted:
+                aligned_image = alignment_window.get_aligned_image()
+
+            # Save the aligned image
+            aligned_filename = os.path.join(aligned_folder_path,
+                                            "aligned_{}.tif".format(i))
+            cv2.imwrite(aligned_filename, aligned_image)
+
+        # add new folder element in the listview
+        folder_img = res.find('img/folder.png')
+        item = QListWidgetItem(QIcon(folder_img), shot_name)
+        self.shot_list.addItem(item)
 
     def align_images_manual(self):
         ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
@@ -436,12 +282,12 @@ class ImageProcessingApp(QMainWindow):
         for i in range(2, 6):  # Start from 2 since 1 is the reference
             target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
             if i == 2:
-                alignment_window = AlignmentWindow(ref_img_path, target_img_path)
+                alignment_window = dia.AlignmentWindow(ref_img_path, target_img_path)
                 if alignment_window.exec_() == QDialog.Accepted:
                     aligned_image = alignment_window.get_aligned_image()
                     ref_points = alignment_window.ref_points
             else:
-                alignment_window = AlignmentWindow(ref_img_path, target_img_path)
+                alignment_window = dia.AlignmentWindow(ref_img_path, target_img_path)
                 alignment_window.load_points(ref_points)
                 if alignment_window.exec_() == QDialog.Accepted:
                     ref_points = alignment_window.ref_points
@@ -458,6 +304,7 @@ class ImageProcessingApp(QMainWindow):
         self.shot_list.addItem(item)
 
     # OLD METHODS
+    """
     def align_images_orb(self, ref, target):
         # Convert images to 8-bit for SIFT
         ref = cv2.normalize(ref, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
@@ -513,7 +360,7 @@ class ImageProcessingApp(QMainWindow):
 
             self.align_images_lines(ref_image, target_image, target_image_path)
 
-
+    
     def align_images_lines(self, ref, target, dest_path):
         res = differential_evolution(func, ((-1, 1), (-1, 1)), maxiter=50, args=(ref,target,))
 
@@ -545,6 +392,7 @@ class ImageProcessingApp(QMainWindow):
 
         save_path = os.path.splitext(dest_path)[0] + "_aligned.tif"
         cv2.imwrite(save_path, slid_image)
+        """
 
 
 

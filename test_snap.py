@@ -8,18 +8,7 @@ from PySide6.QtCore import Qt, QPointF
 image_path = r'D:\Python2023\Multispectrall\000\ALIGNED_IMG_0032\aligned_2.tif'
 image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
-# Apply Sobel edge detection with Gaussian blur
-img_blur = cv2.GaussianBlur(image, (5, 5), 0)
-grad_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5, borderType=cv2.BORDER_DEFAULT)
-grad_y = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5, borderType=cv2.BORDER_DEFAULT)
-
-grad = np.sqrt(grad_x ** 2 + grad_y ** 2)
-sobel_edges = (grad * 255 / grad.max()).astype(np.uint8)
-ret, binary_edges = cv2.threshold(sobel_edges, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-cv2.imshow('RGB Image', binary_edges)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+edges = cv2.Canny(image, 50, 150)
 
 app = QApplication([])
 window = QMainWindow()
@@ -52,8 +41,8 @@ def snap_to_edge(event):
     # Search for edges within the radius
     for i in range(-radius, radius + 1):
         for j in range(-radius, radius + 1):
-            if 0 <= x + i < sobel_edges.shape[1] and 0 <= y + j < sobel_edges.shape[0]:
-                if sobel_edges[y + j, x + i] > 30:
+            if 0 <= x + i < edges.shape[1] and 0 <= y + j < edges.shape[0]:
+                if edges[y + j, x + i] > 30:
                     distance = i ** 2 + j ** 2
                     if distance < min_distance:
                         min_distance = distance
