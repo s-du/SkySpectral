@@ -166,6 +166,22 @@ class ImageProcessingApp(QMainWindow):
             self.see_composed_button.setEnabled(False)
             self.update_display()
 
+    def create_main_indices(self, images_path):
+        blue = cv2.imread(images_path[0], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
+        green = cv2.imread(images_path[1], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
+        red = cv2.imread(images_path[2], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
+        nir = cv2.imread(images_path[3], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
+        red_edge = cv2.imread(images_path[4], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
+
+        # Calculate NDVI
+        ndvi = (nir - red) / (nir + red + 1e-10)  # added small value to prevent division by zero
+
+        # Display the NDVI image
+        plt.imshow(ndvi, cmap='Spectral', vmin=-1, vmax=1)  # set color limits to -1 and 1
+        plt.colorbar()
+        plt.title('NDVI')
+        plt.show()
+
     def show_composed_shots(self):
         # Load individual channel images
         red_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_3.tif')
@@ -180,18 +196,21 @@ class ImageProcessingApp(QMainWindow):
         green_channel_img = cv2.imread(green_path, cv2.IMREAD_GRAYSCALE)
         blue_channel_img = cv2.imread(blue_path, cv2.IMREAD_GRAYSCALE)
 
+        images = [red_path, rededge_path, nir_path, green_path, blue_path]
+        self.create_main_indices(images)
+
         #RGB Image
-        rgb_image = cv2.merge((red_channel_img, green_channel_img, blue_channel_img))
+        rgb_image = cv2.merge((blue_channel_img, green_channel_img, red_channel_img))
         out_rgb_path = os.path.join(self.base_dir, self.selected_compo, 'rgb.png')
         cv2.imwrite(out_rgb_path, rgb_image)
 
         # Rededge G B image
-        regb_image = cv2.merge((re_channel_img, green_channel_img, blue_channel_img))
+        regb_image = cv2.merge((blue_channel_img, green_channel_img, re_channel_img))
         out_regb_path = os.path.join(self.base_dir, self.selected_compo, 'regb.png')
         cv2.imwrite(out_regb_path, regb_image)
 
         # NIR R G image
-        cir_image = cv2.merge((nir_channel_img, red_channel_img, green_channel_img))
+        cir_image = cv2.merge((green_channel_img, red_channel_img, nir_channel_img))
         out_cir_path = os.path.join(self.base_dir, self.selected_compo, 'cir.png')
         cv2.imwrite(out_cir_path, cir_image)
 
@@ -255,7 +274,7 @@ class ImageProcessingApp(QMainWindow):
             target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
             alignment_window = dia.AlignmentWindowArrow(ref_img_path, target_img_path)
             if alignment_window.exec_() == QDialog.Accepted:
-                aligned_image = alignment_window.get_aligned_image()
+                aligned_image = alignment_window.cv_final_image
 
             # Save the aligned image
             aligned_filename = os.path.join(aligned_folder_path,

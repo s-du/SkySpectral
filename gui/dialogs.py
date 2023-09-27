@@ -11,7 +11,7 @@ class ShowComposed(QDialog):
         QDialog.__init__(self)
         basepath = os.path.dirname(__file__)
         basename = 'composed'
-        uifile = os.path.join(basepath, 'gui/ui/%s.ui' % basename)
+        uifile = os.path.join(basepath, 'ui/%s.ui' % basename)
         wid.loadUi(uifile, self)
 
         # combobox
@@ -55,7 +55,20 @@ class AlignmentWindowArrow(QDialog):
 
         # Image Display
         self.image_label = QLabel(self)
+        self.image_label.setFixedSize(800, 600)
         layout.addWidget(self.image_label)
+
+        # Ok and Cancel buttons
+        ok_cancel_layout = QHBoxLayout()
+        self.ok_button = QPushButton("Ok", self)
+        self.cancel_button = QPushButton("Cancel", self)
+        ok_cancel_layout.addWidget(self.ok_button)
+        ok_cancel_layout.addWidget(self.cancel_button)
+        layout.addLayout(ok_cancel_layout)
+
+        # Connect the Ok and Cancel buttons to their respective functions
+        self.ok_button.clicked.connect(self.save_final_image)
+        self.cancel_button.clicked.connect(self.reject)
 
         # Joystick buttons
         joystick_layout = QHBoxLayout()
@@ -75,12 +88,73 @@ class AlignmentWindowArrow(QDialog):
         self.up_button.clicked.connect(self.move_up)
         self.down_button.clicked.connect(self.move_down)
 
+        # Stretch and Shrink buttons
+        stretch_shrink_layout = QHBoxLayout()
+        self.stretch_horizontal_button = QPushButton("Stretch Horizontally", self)
+        self.shrink_horizontal_button = QPushButton("Shrink Horizontally", self)
+        self.stretch_vertical_button = QPushButton("Stretch Vertically", self)
+        self.shrink_vertical_button = QPushButton("Shrink Vertically", self)
+        stretch_shrink_layout.addWidget(self.stretch_horizontal_button)
+        stretch_shrink_layout.addWidget(self.shrink_horizontal_button)
+        stretch_shrink_layout.addWidget(self.stretch_vertical_button)
+        stretch_shrink_layout.addWidget(self.shrink_vertical_button)
+        layout.addLayout(stretch_shrink_layout)
+
+        # Connect the buttons to their respective functions
+        self.stretch_horizontal_button.clicked.connect(self.stretch_horizontal)
+        self.shrink_horizontal_button.clicked.connect(self.shrink_horizontal)
+        self.stretch_vertical_button.clicked.connect(self.stretch_vertical)
+        self.shrink_vertical_button.clicked.connect(self.shrink_vertical)
+
         # ComboBox for selecting pixel movement
         self.pixel_selector = QComboBox(self)
         self.pixel_selector.addItems(['1 pixel', '10 pixels', '20 pixels'])
         layout.addWidget(self.pixel_selector)
 
         self.setLayout(layout)
+
+    def qimage_to_cv2(self, qimage):
+        # Convert QImage to a format suitable for OpenCV
+        width = qimage.width()
+        height = qimage.height()
+
+        # RGB32 format
+        if qimage.format() == QImage.Format_RGB32:
+            ptr = qimage.bits()
+            arr = np.array(ptr).reshape(height, width, 4)  # 4 bytes per pixel
+            b, g, r, a = cv2.split(arr)
+            return cv2.merge([r, g, b])
+
+        # Grayscale 8-bit format
+        elif qimage.format() == QImage.Format_Grayscale8:
+            ptr = qimage.bits()
+            arr = np.array(ptr).reshape(height, width)  # 1 byte per pixel
+            return arr
+
+        # For other formats, use QImage's conversion capabilities before extracting the data
+        else:
+            qimage = qimage.convertToFormat(QImage.Format_RGB32)
+            ptr = qimage.bits()
+            arr = np.array(ptr).reshape(height, width, 4)
+            b, g, r, a = cv2.split(arr)
+            return cv2.merge([r, g, b])
+
+    def get_translated_qimage(self):
+        # Create an empty QImage with the same dimensions
+        translated_image = QImage(self.to_align_image.size(), QImage.Format_ARGB32)
+        translated_image.fill(Qt.transparent)
+
+        # Use QPainter to draw the translated image
+        painter = QPainter(translated_image)
+        painter.drawImage(self.x_offset, self.y_offset, self.to_align_image)
+        painter.end()
+
+        return translated_image
+
+    def save_final_image(self):
+        translated_qimage = self.get_translated_qimage()
+        self.cv_final_image = self.qimage_to_cv2(translated_qimage)
+        self.accept()
 
     def display_images(self):
         # Create an image for blending
@@ -91,12 +165,36 @@ class AlignmentWindowArrow(QDialog):
         painter = QPainter(blended_image)
         painter.setCompositionMode(QPainter.CompositionMode_Source)
         painter.drawImage(0, 0, self.reference_image)
-        painter.setCompositionMode(QPainter.CompositionMode_Multiply)
+        painter.setCompositionMode(QPainter.CompositionMode_Screen)
         painter.drawImage(self.x_offset, self.y_offset, self.to_align_image)
         painter.end()
 
-        # Set the blended image to label
-        self.image_label.setPixmap(QPixmap.fromImage(blended_image))
+        # Create QPixmap from the blended image
+        pixmap = QPixmap.fromImage(blended_image)
+
+        # Scale the QPixmap to fit the QLabel
+        pixmap = pixmap.scaled(self.image_label.width(), self.image_label.height(), Qt.KeepAspectRatio)
+
+        # Set the scaled pixmap to label
+        self.image_label.setPixmap(pixmap)
+
+    def stretch_horizontal(self):
+        self.scale_image(1.05, 1.0)  # Increase width by 10%
+
+    def shrink_horizontal(self):
+        self.scale_image(0.95, 1.0)  # Decrease width by 10%
+
+    def stretch_vertical(self):
+        self.scale_image(1.0, 1.05)  # Increase height by 10%
+
+    def shrink_vertical(self):
+        self.scale_image(1.0, 0.95)  # Decrease height by 10%
+
+    def scale_image(self, sx, sy):
+        # Apply scaling to the to-align image
+        transform = QTransform().scale(sx, sy)
+        self.to_align_image = self.to_align_image.transformed(transform)
+        self.display_images()
 
     def move_image(self, dx, dy):
         transform = QTransform()
