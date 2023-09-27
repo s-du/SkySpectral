@@ -26,6 +26,7 @@ class ShowComposed(QDialog):
         self.buttonBox.rejected.connect(self.reject)
 
         self.comboBox_views.currentIndexChanged.connect(self.on_img_combo_change)
+        self.on_img_combo_change()
 
     def on_img_combo_change(self):
         i = self.comboBox_views.currentIndex()
@@ -179,16 +180,16 @@ class AlignmentWindowArrow(QDialog):
         self.image_label.setPixmap(pixmap)
 
     def stretch_horizontal(self):
-        self.scale_image(1.05, 1.0)  # Increase width by 10%
+        self.scale_image(1.001, 1.0)  # Increase width by 10%
 
     def shrink_horizontal(self):
-        self.scale_image(0.95, 1.0)  # Decrease width by 10%
+        self.scale_image(0.999, 1.0)  # Decrease width by 10%
 
     def stretch_vertical(self):
-        self.scale_image(1.0, 1.05)  # Increase height by 10%
+        self.scale_image(1.0, 1.001)  # Increase height by 10%
 
     def shrink_vertical(self):
-        self.scale_image(1.0, 0.95)  # Decrease height by 10%
+        self.scale_image(1.0, 0.999)  # Decrease height by 10%
 
     def scale_image(self, sx, sy):
         # Apply scaling to the to-align image
@@ -273,10 +274,10 @@ class AlignmentWindow(QDialog):
 
     def on_image_click(self, point, scene):
         # point is now directly in scene's coordinates
-        if len(self.ref_points) < 6 and scene == self.ref_view.scene():
+        if len(self.ref_points) < 12 and scene == self.ref_view.scene():
             self.ref_points.append((point.x(), point.y()))
             self.add_point_marker(scene, point, len(self.ref_points))
-        elif len(self.target_points) < 6 and scene == self.target_view.scene():
+        elif len(self.target_points) < 12 and scene == self.target_view.scene():
             self.target_points.append((point.x(), point.y()))
             self.add_point_marker(scene, point, len(self.target_points))
 
@@ -307,6 +308,7 @@ class AlignmentWindow(QDialog):
         print(np.array(self.target_points))
         print(np.array(self.ref_points))
         rigid = False
+        warp = True
 
         # Estimate the rigid transformation
         if rigid:
@@ -314,12 +316,18 @@ class AlignmentWindow(QDialog):
 
             # Convert the 2x3 matrix to 3x3 to use with warpPerspective
             H = np.vstack([M, [0, 0, 1]])
+        elif warp:
+            H, _ = cv2.findHomography(np.array(self.target_points), np.array(self.ref_points), method=cv2.RANSAC)
 
         else:
             H, _ = cv2.estimateAffine2D(np.array(self.target_points), np.array(self.ref_points), method=cv2.RANSAC)
 
         # Warp the target image to the reference image
         target_img = cv2.imread(self.target_img_path)
-        aligned = cv2.warpAffine(target_img, H, (self.ref_img.width(), self.ref_img.height()))
+
+        if not warp:
+            aligned = cv2.warpAffine(target_img, H, (self.ref_img.width(), self.ref_img.height()))
+        else:
+            aligned = cv2.warpPerspective(target_img, H, (self.ref_img.width(), self.ref_img.height()))
 
         return aligned

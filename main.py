@@ -14,45 +14,35 @@ import shutil
 import sys
 
 
+class MultiSpectralIndice:
+    def __init__(self, name):
+        self.array = []
+        self.name = name
+        self.bounds = []
+        img_path = ''
+
+
 class ImageProcessingApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Micasense Rededge P Image Processor")
 
+        basepath = os.path.dirname(__file__)
+        basename = 'main'
+        uifile = os.path.join(basepath, 'gui/ui/%s.ui' % basename)
+        wid.loadUi(uifile, self)
+
         # UI Elements
-        self.layout = QVBoxLayout()
-
-        self.load_button = QPushButton("Load Image Directory")
-        self.load_button.clicked.connect(self.load_images)
-        self.layout.addWidget(self.load_button)
-
-        # Shot List and its label
-        self.shot_label = QLabel("Select Shot:")
-        self.layout.addWidget(self.shot_label)
-
-        self.shot_list = QListWidget()
         self.shot_list.setViewMode(QListWidget.IconMode)
         self.shot_list.setLayoutDirection(Qt.LeftToRight)
 
         self.shot_list.setIconSize(QSize(64, 64))  # Set the desired icon size
-        self.shot_list.itemClicked.connect(self.shot_selected)
-        self.layout.addWidget(self.shot_list)
         self.selected_shot = ''
 
-        # Band ComboBox and its label
-        self.band_label = QLabel("Select Band:")
-        self.layout.addWidget(self.band_label)
-
-        self.band_combobox = QComboBox()
+        # Band ComboBox
         self.band_combobox.addItems(['blue', 'green', 'red', 'NIR', 'red edge', 'panchromatic'])
-        self.band_combobox.currentIndexChanged.connect(self.update_display)
-        self.layout.addWidget(self.band_combobox)
 
-        # Palette ComboBox and its label
-        self.palette_label = QLabel("Select Color Palette:")
-        self.layout.addWidget(self.palette_label)
-
-        self.palette_combobox = QComboBox()
+        # Palette ComboBox
         # self.palettes = sorted(plt.colormaps())
         self.palettes = [
             'Greys_r',
@@ -99,32 +89,38 @@ class ImageProcessingApp(QMainWindow):
             'RdYlBu_r'
         ]
         self.palette_combobox.addItems(self.palettes)
-        self.palette_combobox.currentIndexChanged.connect(self.update_display)
-        self.layout.addWidget(self.palette_combobox)
 
+        # image viewer
         self.imageviewer = wid.PhotoViewer(self)
-        self.layout.addWidget(self.imageviewer)
+        self.verticalLayout_2.addWidget(self.imageviewer)
 
-        self.align_button = QPushButton("Align This Shot (points)")
-        self.align_button.clicked.connect(self.align_images_manual)
-        self.layout.addWidget(self.align_button)
-
-        self.align_button2 = QPushButton("Align This Shot (arrows)")
-        self.align_button2.clicked.connect(self.align_images_arrows)
-        self.layout.addWidget(self.align_button2)
-
-        self.see_composed_button = QPushButton("See Composed Images", self)
-        self.see_composed_button.setEnabled(False)
-        self.see_composed_button.clicked.connect(self.show_composed_shots)
-        self.layout.addWidget(self.see_composed_button)
-
-        central_widget = QWidget()
-        central_widget.setLayout(self.layout)
-        self.setCentralWidget(central_widget)
 
         # Variables for our images
         self.base_dir = ""
         self.shots = []
+
+        # add icons
+        self.add_icon(res.find('img/folder.png'), self.actionLoad)
+        self.add_icon(res.find('img/point.png'), self.actionAlignPoints)
+        self.add_icon(res.find('img/arrow.png'), self.actionAlignArrows)
+        self.add_icon(res.find('img/profile.png'), self.actionShowCompo)
+
+        # slots
+        self.create_connections()
+
+    def create_connections(self):
+        self.actionLoad.triggered.connect(self.load_images)
+        self.actionAlignPoints.triggered.connect(self.align_images_manual)
+        self.actionAlignArrows.triggered.connect(self.align_images_arrows)
+        self.actionShowCompo.triggered.connect(self.show_composed_shots)
+
+        self.band_combobox.currentIndexChanged.connect(self.update_display)
+        self.palette_combobox.currentIndexChanged.connect(self.update_display)
+        self.shot_list.itemClicked.connect(self.shot_selected)
+
+
+    def add_icon(self, img_source, pushButton_object):
+        pushButton_object.setIcon(QIcon(img_source))
 
     def load_images(self):
         self.base_dir = QFileDialog.getExistingDirectory(self, "Select Image Directory")
@@ -144,6 +140,12 @@ class ImageProcessingApp(QMainWindow):
 
         self.update_display()
 
+        # enable actions
+        self.actionAlignPoints.setEnabled(True)
+        self.actionAlignArrows.setEnabled(True)
+        self.band_combobox.setEnabled(True)
+        self.palette_combobox.setEnabled(True)
+
     def generate_thumbnail(self, img_path):
         thumbnail_size = (64, 64)
         image = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
@@ -159,28 +161,36 @@ class ImageProcessingApp(QMainWindow):
         self.selected_shot = item.text()
 
         if os.path.isdir(os.path.join(self.base_dir, self.selected_shot)):
-            self.see_composed_button.setEnabled(True)
+            self.actionShowCompo.setEnabled(True)
             self.selected_compo = item.text()
             self.show_composed_shots()
         else:
-            self.see_composed_button.setEnabled(False)
+            self.actionShowCompo.setEnabled(False)
             self.update_display()
 
     def create_main_indices(self, images_path):
-        blue = cv2.imread(images_path[0], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
-        green = cv2.imread(images_path[1], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
-        red = cv2.imread(images_path[2], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
-        nir = cv2.imread(images_path[3], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
-        red_edge = cv2.imread(images_path[4], cv2.IMREAD_UNCHANGED).astype(float) / 255.0
+        indices = []
+        red = cv2.imread(images_path[0], cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
+        red_edge = cv2.imread(images_path[1], cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
+        nir = cv2.imread(images_path[2], cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
+        green = cv2.imread(images_path[3], cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
+        blue = cv2.imread(images_path[4], cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
 
         # Calculate NDVI
-        ndvi = (nir - red) / (nir + red + 1e-10)  # added small value to prevent division by zero
+        ndvi = MultiSpectralIndice('NDVI')
+        ndvi.array = (nir - red) / (nir + red + 1e-10)  # added small value to prevent division by zero
+        ndvi.bounds = [-1,1]
 
-        # Display the NDVI image
-        plt.imshow(ndvi, cmap='Spectral', vmin=-1, vmax=1)  # set color limits to -1 and 1
-        plt.colorbar()
-        plt.title('NDVI')
-        plt.show()
+        # Calculate SR
+        sr = MultiSpectralIndice('SR')
+        sr.array = nir / (red + 1e-10)
+        sr.bounds = [0,1]
+
+        indices.append(ndvi)
+        indices.append(sr)
+
+        return indices
+
 
     def show_composed_shots(self):
         # Load individual channel images
@@ -197,7 +207,7 @@ class ImageProcessingApp(QMainWindow):
         blue_channel_img = cv2.imread(blue_path, cv2.IMREAD_GRAYSCALE)
 
         images = [red_path, rededge_path, nir_path, green_path, blue_path]
-        self.create_main_indices(images)
+        indices = self.create_main_indices(images)
 
         #RGB Image
         rgb_image = cv2.merge((blue_channel_img, green_channel_img, red_channel_img))
@@ -214,9 +224,23 @@ class ImageProcessingApp(QMainWindow):
         out_cir_path = os.path.join(self.base_dir, self.selected_compo, 'cir.png')
         cv2.imwrite(out_cir_path, cir_image)
 
+        #  Create indices images
+        for indice in indices:
+            # Display the NDVI image
+            plt.imshow(indice.array, cmap='Spectral', vmin=indice.bounds[0], vmax=indice.bounds[1])  # set color limits to -1 and 1
+            plt.colorbar()
+            plt.title(indice.name)
+            plt.axis('off')
+            indice.img_path = os.path.join(self.base_dir, self.selected_compo, f'{indice.name}.png')
+            plt.savefig(indice.img_path, dpi=300, bbox_inches='tight')
+
         # img_names = ['NDVI', 'GNDVI', 'EVI', 'RENDVI', 'SR']
         img_names = ['RGB', 'REGB', 'CIR']
         img_paths = [out_rgb_path, out_regb_path, out_cir_path]
+
+        for indice in indices:
+            img_names.append(indice.name)
+            img_paths.append(indice.img_path)
 
         dialog = dia.ShowComposed(img_paths, img_names)
         if dialog.exec_():
