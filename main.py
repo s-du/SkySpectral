@@ -32,6 +32,8 @@ class ImageProcessingApp(QMainWindow):
         uifile = os.path.join(basepath, 'gui/ui/%s.ui' % basename)
         wid.loadUi(uifile, self)
 
+        self.setWindowTitle('Process Micasense Rededge P images')
+
         # UI Elements
         self.shot_list.setViewMode(QListWidget.IconMode)
         self.shot_list.setLayoutDirection(Qt.LeftToRight)
@@ -104,6 +106,7 @@ class ImageProcessingApp(QMainWindow):
         self.add_icon(res.find('img/point.png'), self.actionAlignPoints)
         self.add_icon(res.find('img/arrow.png'), self.actionAlignArrows)
         self.add_icon(res.find('img/profile.png'), self.actionShowCompo)
+        self.add_icon(res.find('img/factory.png'), self.actionPrepareAgisoft)
 
         # slots
         self.create_connections()
@@ -113,6 +116,7 @@ class ImageProcessingApp(QMainWindow):
         self.actionAlignPoints.triggered.connect(self.align_images_manual)
         self.actionAlignArrows.triggered.connect(self.align_images_arrows)
         self.actionShowCompo.triggered.connect(self.show_composed_shots)
+        self.actionPrepareAgisoft.triggered.connect(self.show_composed_shots)
 
         self.band_combobox.currentIndexChanged.connect(self.update_display)
         self.palette_combobox.currentIndexChanged.connect(self.update_display)
@@ -233,6 +237,7 @@ class ImageProcessingApp(QMainWindow):
             plt.axis('off')
             indice.img_path = os.path.join(self.base_dir, self.selected_compo, f'{indice.name}.png')
             plt.savefig(indice.img_path, dpi=300, bbox_inches='tight')
+            plt.clf()
 
         # img_names = ['NDVI', 'GNDVI', 'EVI', 'RENDVI', 'SR']
         img_names = ['RGB', 'REGB', 'CIR']
