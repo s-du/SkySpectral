@@ -1,4 +1,4 @@
-# Multispectrall
+# SkySpectral
 A simple tool to process multispectral images from the Micasense Rededge P
 
 ## Introduction
