@@ -162,7 +162,8 @@ class ImageProcessingApp(QMainWindow):
             '2': 'Green',
             '3': 'Red',
             '4': 'NIR',
-            '5': 'RedEdge'
+            '5': 'RedEdge',
+            '6': 'A-Panchromatic'
         }
 
         # For each image in the folder
@@ -199,7 +200,6 @@ class ImageProcessingApp(QMainWindow):
         if os.path.isdir(os.path.join(self.base_dir, self.selected_shot)):
             self.actionShowCompo.setEnabled(True)
             self.selected_compo = item.text()
-            self.show_composed_shots()
         else:
             self.actionShowCompo.setEnabled(False)
             self.update_display()
@@ -323,8 +323,7 @@ class ImageProcessingApp(QMainWindow):
     def align_images_arrows(self):
         ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
 
-        shot_name = f"ALIGNED_IMG_{self.selected_shot}"
-        aligned_folder_path = os.path.join(self.base_dir, shot_name)
+        aligned_folder_path = os.path.join(self.base_dir, self.selected_shot)
         if not os.path.exists(aligned_folder_path):
             os.mkdir(aligned_folder_path)
 
@@ -342,10 +341,12 @@ class ImageProcessingApp(QMainWindow):
                                             "aligned_{}.tif".format(i))
             cv2.imwrite(aligned_filename, aligned_image)
 
+        """
         # add new folder element in the listview
         folder_img = res.find('img/folder.png')
         item = QListWidgetItem(QIcon(folder_img), shot_name)
         self.shot_list.addItem(item)
+        """
 
     def align_images_manual(self):
         ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
