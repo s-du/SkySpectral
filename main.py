@@ -107,6 +107,7 @@ class ImageProcessingApp(QMainWindow):
         self.add_icon(res.find('img/arrow.png'), self.actionAlignArrows)
         self.add_icon(res.find('img/profile.png'), self.actionShowCompo)
         self.add_icon(res.find('img/factory.png'), self.actionPrepareAgisoft)
+        self.add_icon(res.find('img/math.png'), self.actionAddTransform)
 
         # slots
         self.create_connections()
@@ -152,6 +153,9 @@ class ImageProcessingApp(QMainWindow):
 
         self.band_combobox.setEnabled(True)
         self.palette_combobox.setEnabled(True)
+
+
+
 
     def prepare_agisoft(self):
         # Create the 'for Agisoft' folder
@@ -243,38 +247,64 @@ class ImageProcessingApp(QMainWindow):
         return indices
 
 
-    def show_composed_shots(self):
-        # Load individual channel images
-        red_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_3.tif')
-        green_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_2.tif')
-        blue_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_1.tif')
-        rededge_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_5.tif')
-        nir_path = os.path.join(self.base_dir, self.selected_compo, 'aligned_4.tif')
+    def raster_transform(self):
+        self.get_channels_paths()
+        dialog = dia.RasterTransformDialog(self.images)
+        if dialog.exec_():
+            pass
 
-        red_channel_img = cv2.imread(red_path, cv2.IMREAD_GRAYSCALE)
-        re_channel_img = cv2.imread(rededge_path, cv2.IMREAD_GRAYSCALE)
-        nir_channel_img = cv2.imread(nir_path, cv2.IMREAD_GRAYSCALE)
-        green_channel_img = cv2.imread(green_path, cv2.IMREAD_GRAYSCALE)
-        blue_channel_img = cv2.imread(blue_path, cv2.IMREAD_GRAYSCALE)
+    def create_compo_shots(self):
+        self.get_channels_paths()
+        sub_compo = os.path.join(self.base_dir, self.selected_compo, 'composed')
 
-        images = [red_path, rededge_path, nir_path, green_path, blue_path]
-        indices = self.create_main_indices(images)
+        if not os.path.exists(sub_compo):
+            os.makedirs(sub_compo)
 
-        #RGB Image
-        rgb_image = cv2.merge((blue_channel_img, green_channel_img, red_channel_img))
-        out_rgb_path = os.path.join(self.base_dir, self.selected_compo, 'rgb.png')
+        # Convert the float images in the range [0, 1] back to uint8 in the range [0, 255]
+        converted_images = {k: (v * 255).astype(np.uint8) for k, v in self.images.items()}
+
+        # RGB Image
+        rgb_image = cv2.merge((converted_images['B'], converted_images['G'], converted_images['R']))
+        out_rgb_path = os.path.join(sub_compo, 'rgb.png')
         cv2.imwrite(out_rgb_path, rgb_image)
 
         # Rededge G B image
-        regb_image = cv2.merge((blue_channel_img, green_channel_img, re_channel_img))
-        out_regb_path = os.path.join(self.base_dir, self.selected_compo, 'regb.png')
+        regb_image = cv2.merge((converted_images['B'], converted_images['G'], converted_images['RE']))
+        out_regb_path = os.path.join(sub_compo, 'regb.png')
         cv2.imwrite(out_regb_path, regb_image)
 
         # NIR R G image
-        cir_image = cv2.merge((green_channel_img, red_channel_img, nir_channel_img))
-        out_cir_path = os.path.join(self.base_dir, self.selected_compo, 'cir.png')
+        cir_image = cv2.merge((converted_images['G'], converted_images['R'], converted_images['NIR']))
+        out_cir_path = os.path.join(sub_compo, 'cir.png')
         cv2.imwrite(out_cir_path, cir_image)
 
+
+    def get_channels_paths(self):
+        # Load individual channel images
+        images_paths = [
+            os.path.join(self.base_dir, self.selected_compo, 'aligned_1.tif'),
+            os.path.join(self.base_dir, self.selected_compo, 'aligned_2.tif'),
+            os.path.join(self.base_dir, self.selected_compo, 'aligned_3.tif'),
+            os.path.join(self.base_dir, self.selected_compo, 'aligned_4.tif'),
+            os.path.join(self.base_dir, self.selected_compo, 'aligned_5.tif'),
+        ]
+        self.images = {name: cv2.imread(path, cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
+                       for name, path in zip(['B', 'G', 'R', 'NIR', 'RE'], images_paths)}
+
+    def show_composed_shots(self):
+        img_files = os.listdir(os.path.join(self.base_dir, self.selected_compo, 'composed'))
+        img_paths = []
+        img_names = []
+        for img_file in img_files:
+            img_paths.append(os.path.join(self.base_dir, self.selected_compo, 'composed', img_file))
+            img_names.append(img_file[:-4])
+
+        # indices = self.create_main_indices(images)
+        dialog = dia.ShowComposed(img_paths, img_names)
+        if dialog.exec_():
+            pass
+
+        """
         #  Create indices images
         for indice in indices:
             # Display the NDVI image
@@ -287,16 +317,11 @@ class ImageProcessingApp(QMainWindow):
             plt.clf()
 
         # img_names = ['NDVI', 'GNDVI', 'EVI', 'RENDVI', 'SR']
-        img_names = ['RGB', 'REGB', 'CIR']
-        img_paths = [out_rgb_path, out_regb_path, out_cir_path]
 
         for indice in indices:
             img_names.append(indice.name)
             img_paths.append(indice.img_path)
-
-        dialog = dia.ShowComposed(img_paths, img_names)
-        if dialog.exec_():
-            pass
+        """
 
     def update_display(self):
         shot = self.selected_shot
@@ -359,6 +384,7 @@ class ImageProcessingApp(QMainWindow):
         self.actionShowCompo.setEnabled(True)
         self.actionAddTransform.setEnabled(True)
         self.selected_compo = self.selected_shot
+        self.create_compo_shots()
         """
         # add new folder element in the listview
         folder_img = res.find('img/folder.png')
@@ -400,6 +426,7 @@ class ImageProcessingApp(QMainWindow):
         self.actionShowCompo.setEnabled(True)
         self.actionAddTransform.setEnabled(True)
         self.selected_compo = self.selected_shot
+        self.create_compo_shots()
 
     # OLD METHODS
     """

@@ -5,10 +5,13 @@ from PySide6.QtWidgets import *
 from gui import widgets as wid
 import os
 import numpy as np
+import resources as res
+import re
+import matplotlib.cm as cm
 
 
 class RasterTransformDialog(QDialog):
-    def __init__(self, images_paths):
+    def __init__(self, images):
         super().__init__()
 
         # Window title and size
@@ -26,9 +29,24 @@ class RasterTransformDialog(QDialog):
         self.bands_list.itemDoubleClicked.connect(self.add_band_to_formula)
         main_layout.addWidget(self.bands_list)
 
+        self.indices = {
+            "NDVI": "(NIR - R) / (NIR + R)",
+            "SR": "NIR / R",
+            "MSI": "NIR / RE",
+            "NDWI": "(G - NIR) / (G + NIR)"
+        }
+
         # Right side layout
         right_layout = QVBoxLayout()
         main_layout.addLayout(right_layout)
+
+        self.indices_combobox = QComboBox(self)
+        self.indices_combobox.addItem("Custom")  # An option for custom formulas
+        for index_name in self.indices.keys():
+            self.indices_combobox.addItem(index_name)
+        right_layout.addWidget(self.indices_combobox)
+
+        self.indices_combobox.currentIndexChanged.connect(self.on_index_changed)
 
         # Formula input
         self.formula_input = QLineEdit(self)
@@ -56,8 +74,7 @@ class RasterTransformDialog(QDialog):
         self.formula_input.textChanged.connect(self.check_formula)
 
         # Load images
-        self.images = {name: cv2.imread(path, cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
-                       for name, path in zip(['B', 'G', 'R', 'RE', 'NIR'], images_paths)}
+        self.images = images
 
         # Colormap dropdown
         self.colormap_dropdown = QComboBox(self)
@@ -79,9 +96,30 @@ class RasterTransformDialog(QDialog):
 
         # OK and Cancel buttons
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
-        self.button_box.accepted.connect(self.accept)
+        self.button_box.accepted.connect(self.on_ok_clicked)
         self.button_box.rejected.connect(self.reject)
         right_layout.addWidget(self.button_box)
+
+    def on_ok_clicked(self):
+        selected_index = self.indices_combobox.currentText()
+        if selected_index == "Custom":
+            # If formula is custom, prompt the user for a name
+            formula_name, ok = QInputDialog.getText(self, "Formula Name", "Enter the name for your custom formula:")
+            if not ok:
+                return  # User canceled the input dialog
+        else:
+            # If formula is predefined, get the name automatically
+            formula_name = selected_index
+
+        # Continue with any other logic you want after obtaining the formula name
+        # For example, save the formula, close the dialog, etc.
+        self.accept()
+
+    def on_index_changed(self):
+        selected_index = self.indices_combobox.currentText()
+        if selected_index in self.indices:
+            formula = self.indices[selected_index]
+            self.formula_input.setText(formula)
 
     def add_band_to_formula(self, item):
         current_text = self.formula_input.text()
@@ -117,6 +155,14 @@ class RasterTransformDialog(QDialog):
                 return False
             for op2 in operators:
                 if op + op2 in formula or op2 + op in formula:
+                    return False
+
+        # Check for adjacent bands without an operator in between
+        bands = ['B', 'G', 'PAN', 'R', 'RE', 'NIR']
+        for band1 in bands:
+            for band2 in bands:
+                pattern = band1 + band2
+                if pattern in formula:
                     return False
 
         return True

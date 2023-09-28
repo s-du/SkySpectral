@@ -231,7 +231,7 @@ QComboBox::down-arrow {
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
    <property name="enabled">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
    <property name="windowTitle">
     <string>toolBar</string>
@@ -295,6 +295,9 @@ QComboBox::down-arrow {
    </property>
   </action>
   <action name="actionAddTransform">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>AddTransform</string>
    </property>
