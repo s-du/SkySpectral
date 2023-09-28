@@ -6,6 +6,187 @@ from gui import widgets as wid
 import os
 import numpy as np
 
+
+class RasterTransformDialog(QDialog):
+    def __init__(self, images_paths):
+        super().__init__()
+
+        # Window title and size
+        self.setWindowTitle("Raster Transform")
+        # Set the minimum size
+        self.setMinimumSize(800, 600)
+
+        # Main layout
+        main_layout = QHBoxLayout(self)
+
+        # List of bands
+        self.bands_list = QListWidget(self)
+        bands = ["Blue (B)", "Green (G)",  "Red (R)", "RedEdge (RE)", "NearInfrared (NIR)"]
+        self.bands_list.addItems(bands)
+        self.bands_list.itemDoubleClicked.connect(self.add_band_to_formula)
+        main_layout.addWidget(self.bands_list)
+
+        # Right side layout
+        right_layout = QVBoxLayout()
+        main_layout.addLayout(right_layout)
+
+        # Formula input
+        self.formula_input = QLineEdit(self)
+        right_layout.addWidget(self.formula_input)
+
+        # Formula correctness indicator
+        self.formula_indicator = QLabel(self)
+        right_layout.addWidget(self.formula_indicator)
+
+        # Operators grid
+        operators_grid = QGridLayout()
+        right_layout.addLayout(operators_grid)
+
+        operators = [
+            "+", "-", "*", "/",
+            "asin", "sin", "cos", "acos",
+            "tan", "atan", "(", ")",
+            "^", "exp", "log", "sqrt"
+        ]
+        for i, op in enumerate(operators):
+            btn = self.create_operator_button(op)
+            operators_grid.addWidget(btn, i // 4, i % 4)
+
+        # Connect formula input changes to the check function
+        self.formula_input.textChanged.connect(self.check_formula)
+
+        # Load images
+        self.images = {name: cv2.imread(path, cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
+                       for name, path in zip(['B', 'G', 'R', 'RE', 'NIR'], images_paths)}
+
+        # Colormap dropdown
+        self.colormap_dropdown = QComboBox(self)
+        self.colormaps = ["Spectral", "Viridis", "Greys"]
+        self.colormap_dropdown.addItems(self.colormaps)
+        self.colormap_dropdown.currentIndexChanged.connect(self.update_preview)
+        right_layout.addWidget(self.colormap_dropdown)
+
+        # Image preview
+        self.graphics_view = QGraphicsView(self)
+        self.graphics_view.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)
+        self.graphics_view.viewport().setFixedSize(400, 300)  # Set viewport size
+        self.graphics_scene = QGraphicsScene()
+        self.graphics_view.setScene(self.graphics_scene)
+        right_layout.addWidget(self.graphics_view)
+
+        # Connect formula input changes to the preview update function
+        self.formula_input.textChanged.connect(self.update_preview)
+
+        # OK and Cancel buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        right_layout.addWidget(self.button_box)
+
+    def add_band_to_formula(self, item):
+        current_text = self.formula_input.text()
+        self.formula_input.setText(current_text + item.text().split(' ')[-1][1:-1])
+
+    def add_operator_to_formula(self, operator):
+        current_text = self.formula_input.text()
+        self.formula_input.setText(current_text + operator)
+
+    def create_operator_button(self, operator):
+        btn = QPushButton(operator, self)
+        btn.clicked.connect(lambda: self.add_operator_to_formula(operator))
+        return btn
+
+    def check_formula(self):
+        formula = self.formula_input.text()
+        if self.is_formula_correct(formula):
+            pixmap = QPixmap(res.find("img/check.png"))
+            self.formula_indicator.setPixmap(pixmap)
+        else:
+            pixmap = QPixmap(res.find("img/cross.png"))
+            self.formula_indicator.setPixmap(pixmap)
+
+    def is_formula_correct(self, formula):
+        # Check for balanced parentheses
+        if formula.count('(') != formula.count(')'):
+            return False
+
+        # Check for incompatible operators
+        operators = ['+', '-', '*', '/', '^', 'sqrt', 'sin', 'asin', 'log', 'cos', 'acos', 'tan', 'atan', 'exp']
+        for op in operators:
+            if formula.endswith(op) or formula.startswith(op):
+                return False
+            for op2 in operators:
+                if op + op2 in formula or op2 + op in formula:
+                    return False
+
+        return True
+
+    def update_preview(self):
+        # Get current formula
+        formula = self.formula_input.text()
+
+        # Check if formula is correct
+        if not self.is_formula_correct(formula):
+            # Display placeholder or clear preview
+            self.graphics_scene.clear()
+            return
+
+        # Compute formula result
+        result = self.compute_formula(formula)
+
+        # Resize the result to 400x300
+        result_resized = cv2.resize(result, (400, 300))
+
+        # Apply the colormap and visualize
+        colormap_name = self.colormap_dropdown.currentText()
+        colormap = cm.get_cmap(colormap_name)
+        colored_result = (colormap(result_resized)[:, :, :3] * 255).astype(np.uint8)
+        height, width, channel = colored_result.shape
+        bytes_per_line = 3 * width
+        q_image = QImage(colored_result.data, width, height, bytes_per_line, QImage.Format_RGB888)
+
+        # Update graphics scene
+        pixmap = QPixmap.fromImage(q_image)
+        self.graphics_scene.clear()
+        item = self.graphics_scene.addPixmap(pixmap)
+
+        # Compute scaling factors and scale the content
+        x_scale = 400 / item.boundingRect().width()
+        y_scale = 300 / item.boundingRect().height()
+        self.graphics_view.setTransform(QTransform().scale(x_scale, y_scale))
+
+
+    def compute_formula(self, formula):
+        # Sort band names by length in descending order
+        sorted_band_names = sorted(self.images.keys(), key=len, reverse=True)
+
+        # Replace band names with actual image data
+        for band_name in sorted_band_names:
+            pattern = r'\b' + band_name + r'\b'  # \b denotes a word boundary
+            replacement = f"self.images['{band_name}']"
+            formula = re.sub(pattern, replacement, formula)
+
+        print(formula)
+
+        # Compute the formula result
+        with np.errstate(divide='ignore', invalid='ignore'):  # Handle divide by zero
+            try:
+                result = eval(formula)
+
+                # Replace inf, -inf, and nan values with 0 or other desired value
+                result[np.isinf(result)] = 0
+                result[np.isnan(result)] = 0
+
+                # Normalize the result to [0, 1] for visualization
+                result = (result - np.min(result)) / (np.max(result) - np.min(result))
+
+            except Exception as e:
+                print(f"Error computing formula: {e}")
+                result = np.zeros_like(list(self.images.values())[0])  # Return a blank image if there's an error
+
+        return result
+
+
 class ShowComposed(QDialog):
     def __init__(self, img_paths, img_names, parent=None):
         QDialog.__init__(self)

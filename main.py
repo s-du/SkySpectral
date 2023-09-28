@@ -117,6 +117,7 @@ class ImageProcessingApp(QMainWindow):
         self.actionAlignArrows.triggered.connect(self.align_images_arrows)
         self.actionShowCompo.triggered.connect(self.show_composed_shots)
         self.actionPrepareAgisoft.triggered.connect(self.prepare_agisoft)
+        self.actionAddTransform.triggered.connect(self.raster_transform)
 
         self.band_combobox.currentIndexChanged.connect(self.update_display)
         self.palette_combobox.currentIndexChanged.connect(self.update_display)
@@ -148,6 +149,7 @@ class ImageProcessingApp(QMainWindow):
         self.actionAlignPoints.setEnabled(True)
         self.actionAlignArrows.setEnabled(True)
         self.actionPrepareAgisoft.setEnabled(True)
+
         self.band_combobox.setEnabled(True)
         self.palette_combobox.setEnabled(True)
 
@@ -180,7 +182,7 @@ class ImageProcessingApp(QMainWindow):
                     # Move the image to its respective band folder
                     src_path = os.path.join(self.base_dir, filename)
                     dst_path = os.path.join(band_folder, filename)
-                    shutil.move(src_path, dst_path)
+                    shutil.copy(src_path, dst_path)
 
 
     def generate_thumbnail(self, img_path):
@@ -213,17 +215,30 @@ class ImageProcessingApp(QMainWindow):
         blue = cv2.imread(images_path[4], cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
 
         # Calculate NDVI
-        ndvi = MultiSpectralIndice('NDVI')
+        ndvi = MultiSpectralIndice('NDVI (Normalized Difference Vegetation Index)')
         ndvi.array = (nir - red) / (nir + red + 1e-10)  # added small value to prevent division by zero
         ndvi.bounds = [-1,1]
 
         # Calculate SR
-        sr = MultiSpectralIndice('SR')
+        sr = MultiSpectralIndice('SR (Simple ratio)')
         sr.array = nir / (red + 1e-10)
         sr.bounds = [0,1]
 
+        # Calculate MSI (Moisture stress index)
+        msi = MultiSpectralIndice('MSI (Moisture stress index)')
+        msi.array = nir / (red_edge + 1e-10)
+        msi.bounds = [0,1]
+
+        # Calculate NDWI (Normalized Difference Water Index)
+        ndwi = MultiSpectralIndice('NDWI (Normalized Difference Water Index)')
+        ndwi.array = (green - nir) / (green + nir + 1e-10)
+        ndwi.bounds = [-1,1]
+
+
         indices.append(ndvi)
         indices.append(sr)
+        indices.append(msi)
+        indices.append(ndwi)
 
         return indices
 
@@ -341,6 +356,9 @@ class ImageProcessingApp(QMainWindow):
                                             "aligned_{}.tif".format(i))
             cv2.imwrite(aligned_filename, aligned_image)
 
+        self.actionShowCompo.setEnabled(True)
+        self.actionAddTransform.setEnabled(True)
+        self.selected_compo = self.selected_shot
         """
         # add new folder element in the listview
         folder_img = res.find('img/folder.png')
@@ -379,10 +397,9 @@ class ImageProcessingApp(QMainWindow):
                                             "aligned_{}.tif".format(i))
             cv2.imwrite(aligned_filename, aligned_image)
 
-        # add new folder element in the listview
-        folder_img = res.find('img/folder.png')
-        item = QListWidgetItem(QIcon(folder_img), shot_name)
-        self.shot_list.addItem(item)
+        self.actionShowCompo.setEnabled(True)
+        self.actionAddTransform.setEnabled(True)
+        self.selected_compo = self.selected_shot
 
     # OLD METHODS
     """

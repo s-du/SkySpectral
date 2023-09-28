@@ -224,12 +224,15 @@ QComboBox::down-arrow {
      <x>0</x>
      <y>0</y>
      <width>1240</width>
-     <height>26</height>
+     <height>31</height>
     </rect>
    </property>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="windowTitle">
     <string>toolBar</string>
    </property>
@@ -243,6 +246,7 @@ QComboBox::down-arrow {
    <addaction name="actionAlignPoints"/>
    <addaction name="actionAlignArrows"/>
    <addaction name="separator"/>
+   <addaction name="actionAddTransform"/>
    <addaction name="actionShowCompo"/>
    <addaction name="separator"/>
    <addaction name="actionPrepareAgisoft"/>
@@ -288,6 +292,11 @@ QComboBox::down-arrow {
    </property>
    <property name="text">
     <string>PrepareAgisoft</string>
+   </property>
+  </action>
+  <action name="actionAddTransform">
+   <property name="text">
+    <string>AddTransform</string>
    </property>
   </action>
  </widget>
