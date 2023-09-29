@@ -155,6 +155,7 @@ class RasterTransformDialog(QDialog):
         else:
             # If formula is predefined, get the name automatically
             self.formula_name = selected_index
+            self.formula_equation = formula
 
 
         self.final_result = self.compute_formula(formula)
@@ -317,6 +318,12 @@ class AlignmentWindowArrow(QDialog):
         # Load images
         self.reference_image = QImage(ref_path)
         self.to_align_image = QImage(targ_path)
+
+        # Resize 'to_align_image' to match the height of 'reference_image' while maintaining the aspect ratio
+        target_width = int(self.to_align_image.width() * (self.reference_image.height() / self.to_align_image.height()))
+        self.to_align_image = self.to_align_image.scaled(target_width, self.reference_image.height(),
+                                                         Qt.KeepAspectRatio)
+
         self.x_offset = 0
         self.y_offset = 0
 
@@ -431,6 +438,15 @@ class AlignmentWindowArrow(QDialog):
     def save_final_image(self):
         translated_qimage = self.get_translated_qimage()
         self.cv_final_image = self.qimage_to_cv2(translated_qimage)
+        # Define the ROI coordinates
+        x_start = 0
+        y_start = 0
+        x_end = 2464
+        y_end = 2056
+
+        # Crop the image
+        self.cv_final_image = self.cv_final_image[y_start:y_end, x_start:x_end]
+
         self.accept()
 
     def display_images(self):

@@ -278,6 +278,9 @@ class ImageProcessingApp(QMainWindow):
         # Convert the float images in the range [0, 1] back to uint8 in the range [0, 255]
         converted_images = {k: (v * 255).astype(np.uint8) for k, v in self.images.items()}
 
+        # PANSHARPENING RGB
+
+
         # RGB Image
         rgb_image = cv2.merge((converted_images['B'], converted_images['G'], converted_images['R']))
         out_rgb_path = os.path.join(sub_compo, 'rgb.png')
@@ -374,16 +377,16 @@ class ImageProcessingApp(QMainWindow):
         self.imageviewer.setPhoto(pixmap=pixmap)
 
     def align_images_arrows(self):
-        ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
+        ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_6.tif")  # Using PAN band as reference
 
         aligned_folder_path = os.path.join(self.base_dir, self.selected_shot)
         if not os.path.exists(aligned_folder_path):
             os.mkdir(aligned_folder_path)
 
-        dst_ref = os.path.join(aligned_folder_path, f"aligned_1.tif")
+        dst_ref = os.path.join(aligned_folder_path, f"aligned_6.tif")
         shutil.copyfile(ref_img_path, dst_ref)
 
-        for i in range(2, 6):  # Start from 2 since 1 is the reference
+        for i in range(1, 6):  # Start from 2 since 1 is the reference
             target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
             alignment_window = dia.AlignmentWindowArrow(ref_img_path, target_img_path)
             if alignment_window.exec_() == QDialog.Accepted:
