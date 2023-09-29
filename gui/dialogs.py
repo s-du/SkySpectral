@@ -315,6 +315,10 @@ class AlignmentWindowArrow(QDialog):
     def __init__(self, ref_path, targ_path):
         super().__init__()
 
+        # Dragging state
+        self.dragging = False
+        self.last_mouse_position = QPoint()
+
         # Load images
         self.reference_image = QImage(ref_path)
         self.to_align_image = QImage(targ_path)
@@ -342,8 +346,11 @@ class AlignmentWindowArrow(QDialog):
         layout = QVBoxLayout()
 
         # Image Display
+        self.title = QLabel('test')
         self.image_label = QLabel(self)
         self.image_label.setFixedSize(800, 600)
+
+        layout.addWidget(self.title)
         layout.addWidget(self.image_label)
 
         # Ok and Cancel buttons
@@ -401,6 +408,30 @@ class AlignmentWindowArrow(QDialog):
 
         self.setLayout(layout)
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragging = True
+            self.last_mouse_position = event.pos()
+
+    def mouseMoveEvent(self, event):
+        if self.dragging:
+            # Calculate how much the mouse has moved
+            dx = event.x() - self.last_mouse_position.x()
+            dy = event.y() - self.last_mouse_position.y()
+
+            # Update the offset values
+            self.x_offset += dx
+            self.y_offset += dy
+
+            # Update the last mouse position
+            self.last_mouse_position = event.pos()
+
+            # Redraw the image
+            self.display_images()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragging = False
     def apply_canny_effect(self, image):
         # Convert QImage to cv2 format
         cv_image = self.qimage_to_cv2(image)
