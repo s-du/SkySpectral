@@ -528,8 +528,14 @@ class AlignmentWindow(QDialog):
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
 
-        self.ref_img = QImage(ref_img)
-        self.target_img = QImage(target_img)
+        self.ref_image = QImage(ref_img)
+        self.target_image = QImage(target_img)
+
+        # Resize 'to_align_image' to match the height of 'reference_image' while maintaining the aspect ratio
+        target_width = int(self.target_image.width() * (self.ref_image.height() / self.target_image.height()))
+        print(target_width)
+        self.target_image = self.target_image.scaled(target_width, self.ref_image.height(),
+                                                         Qt.KeepAspectRatio)
 
         self.ref_img_path = ref_img
         self.target_img_path = target_img
@@ -537,8 +543,8 @@ class AlignmentWindow(QDialog):
         self.ref_points = []
         self.target_points = []
 
-        self.ref_view = self.create_graphics_view(self.ref_img)
-        self.target_view = self.create_graphics_view(self.target_img)
+        self.ref_view = self.create_graphics_view(self.ref_image)
+        self.target_view = self.create_graphics_view(self.target_image)
 
         self.layout.addWidget(self.ref_view)
         self.layout.addWidget(self.target_view)
@@ -549,6 +555,42 @@ class AlignmentWindow(QDialog):
         self.ok_button.clicked.connect(self.accept)
         control_layout.addWidget(self.ok_button)
         self.layout.addLayout(control_layout)
+
+    def qimage_to_cv2(self, qimage):
+        # Convert QImage to a format suitable for OpenCV
+        width = qimage.width()
+        height = qimage.height()
+
+        print(qimage.format())
+
+        # RGB32 format
+        if qimage.format() == QImage.Format_RGB32:
+            ptr = qimage.bits()
+            arr = np.array(ptr).reshape(height, width, 4)  # 4 bytes per pixel
+            b, g, r, a = cv2.split(arr)
+            return cv2.merge([r, g, b])
+
+        # Format_Grayscale16 format
+        elif qimage.format() == QImage.Format_Grayscale16:
+            # Given width
+            width = 2751
+
+            # Extract bytes without padding
+            data = qimage.bits()
+            adjusted_data_bytes = []
+
+            for i in range(height):
+                start_index = i * (width * 2 + 2)  # 2 bytes for each pixel + 2 bytes padding
+                end_index = start_index + width * 2  # 2 bytes for each pixel in the current row
+                adjusted_data_bytes.extend(data[start_index:end_index])
+
+            # Convert bytes to 16-bit values
+            arr_16bit = np.frombuffer(bytearray(adjusted_data_bytes), dtype=np.uint16).reshape(height, width)
+
+            # Convert 16-bit grayscale to 8-bit grayscale for compatibility with many OpenCV functions
+            arr_8bit = (arr_16bit / 256).astype(np.uint8)
+            arr_8bit.shape
+            return arr_8bit
 
     def create_graphics_view(self, img):
         scene = QGraphicsScene()
@@ -615,11 +657,24 @@ class AlignmentWindow(QDialog):
             H, _ = cv2.estimateAffine2D(np.array(self.target_points), np.array(self.ref_points), method=cv2.RANSAC)
 
         # Warp the target image to the reference image
-        target_img = cv2.imread(self.target_img_path)
+        target_img = self.qimage_to_cv2(self.target_image)
+
+        # Debug: Print the shape and type of target_img
+        print("Target Image Shape:", target_img.shape)
+        print("Target Image Type:", type(target_img))
 
         if not warp:
-            aligned = cv2.warpAffine(target_img, H, (self.ref_img.width(), self.ref_img.height()))
+            aligned = cv2.warpAffine(target_img, H, (self.target_image.width(), self.target_image.height()))
         else:
-            aligned = cv2.warpPerspective(target_img, H, (self.ref_img.width(), self.ref_img.height()))
+            aligned = cv2.warpPerspective(target_img, H, (self.target_image.width(), self.target_image.height()))
 
-        return aligned
+        # Define the ROI coordinates
+        x_start = 0
+        y_start = 0
+        x_end = 2464
+        y_end = 2056
+
+        # Crop the image
+        cv_final_image = aligned[y_start:y_end, x_start:x_end]
+
+        return cv_final_image

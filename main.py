@@ -409,7 +409,7 @@ class ImageProcessingApp(QMainWindow):
         """
 
     def align_images_manual(self):
-        ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_1.tif")  # Using 1st band as reference
+        ref_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_6.tif")  # Using pan band as reference
 
         shot_name = f"ALIGNED_IMG_{self.selected_shot}"
         aligned_folder_path = os.path.join(self.base_dir, shot_name)
@@ -417,12 +417,12 @@ class ImageProcessingApp(QMainWindow):
             os.mkdir(aligned_folder_path)
 
         # copy reference
-        dst_ref = os.path.join(aligned_folder_path, f"aligned_1.tif")
+        dst_ref = os.path.join(aligned_folder_path, f"aligned_6.tif")
         shutil.copyfile(ref_img_path, dst_ref)
 
-        for i in range(2, 6):  # Start from 2 since 1 is the reference
+        for i in range(1, 6):  # Start from 2 since 1 is the reference
             target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
-            if i == 2:
+            if i == 1:
                 alignment_window = dia.AlignmentWindow(ref_img_path, target_img_path)
                 if alignment_window.exec_() == QDialog.Accepted:
                     aligned_image = alignment_window.get_aligned_image()
