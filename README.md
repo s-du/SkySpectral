@@ -43,12 +43,12 @@ The functionalities include:
 
 1. Clone the repository:
 ```
-git clone https://github.com/s-du/Multispectrall
+git clone https://github.com/s-du/SkySpectral
 ```
 
 2. Navigate to the app directory:
 ```
-cd Multispectrall
+cd SkySpectral
 ```
 
 3. Install the required dependencies:
