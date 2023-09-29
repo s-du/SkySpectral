@@ -312,8 +312,10 @@ class ShowComposed(QDialog):
 
 
 class AlignmentWindowArrow(QDialog):
-    def __init__(self, ref_path, targ_path):
+    def __init__(self, ref_path, targ_path, title):
         super().__init__()
+
+        self.title = title
 
         # Dragging state
         self.dragging = False
@@ -346,11 +348,10 @@ class AlignmentWindowArrow(QDialog):
         layout = QVBoxLayout()
 
         # Image Display
-        self.title = QLabel('test')
+        self.setWindowTitle("Image Alignment " + self.title)
         self.image_label = QLabel(self)
         self.image_label.setFixedSize(800, 600)
 
-        layout.addWidget(self.title)
         layout.addWidget(self.image_label)
 
         # Ok and Cancel buttons

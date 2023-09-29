@@ -386,9 +386,11 @@ class ImageProcessingApp(QMainWindow):
         dst_ref = os.path.join(aligned_folder_path, f"aligned_6.tif")
         shutil.copyfile(ref_img_path, dst_ref)
 
-        for i in range(1, 6):  # Start from 2 since 1 is the reference
+        bands = ['B to PAN', 'G to PAN', 'R to PAN', 'NIR to PAN', 'RE to PAN']
+
+        for i in range(1, 6):
             target_img_path = os.path.join(self.base_dir, f"IMG_{self.selected_shot}_{i}.tif")
-            alignment_window = dia.AlignmentWindowArrow(ref_img_path, target_img_path)
+            alignment_window = dia.AlignmentWindowArrow(ref_img_path, target_img_path, bands[i-1])
             if alignment_window.exec_() == QDialog.Accepted:
                 aligned_image = alignment_window.cv_final_image
 
