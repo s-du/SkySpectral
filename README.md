@@ -1,8 +1,8 @@
 # SkySpectral
-A simple tool to process multispectral images from the Micasense Rededge P
+A simple tool to process multispectral images from the Micasense RedEdge-P
 
 ## Introduction
-SkySPectral is a simple tool for visualizing and processing multispectral imagery. It enables the alignment and combination of various sub-images to extract relevant data.
+SkySPectral is a simple tool for visualizing and processing multispectral imagery. It enables the alignment and combination of various sub-images (bands) to extract relevant data.
 
 \#Multispectral \#Open-CV \#Building diagnosis \#ImageProcessing 
 
