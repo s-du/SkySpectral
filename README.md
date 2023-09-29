@@ -1,6 +1,11 @@
 # SkySpectral
 A simple tool to process multispectral images from the Micasense RedEdge-P
 
+Coming next:
+- Pan sharpening algorithm
+- Agisoft automated workflow
+- Image annotation
+
 ## Introduction
 SkySPectral is a simple tool for visualizing and processing multispectral imagery. It enables the alignment and combination of various sub-images (bands) to extract relevant data.
 
