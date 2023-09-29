@@ -9,7 +9,7 @@ SkySPectral is a simple tool for visualizing and processing multispectral imager
 **The project is still in pre-release, so do not hesitate to send your recommendations or the bugs you encountered!**
 
 <p align="center">
-    <a href="https://ibb.co/pQkkp0W"><img src="https://i.ibb.co/3vPPHrf/Capture-d-cran-2023-09-27-181906.png" alt="Capture-d-cran-2023-09-27-181906" border="0"></a>
+    <a><img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeDJkdnhmaGJqaXE1OHBwOGYzb3Y2bjNlbnp3ZmN3aGU3bmhoZGoydiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/PhPLPMBCVX929LJflR/giphy.gif" alt="principle" border="0"></a>
     
     Processing multispectral image, from a folder
 </p>
