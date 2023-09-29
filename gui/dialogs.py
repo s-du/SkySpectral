@@ -225,6 +225,7 @@ class RasterTransformDialog(QDialog):
 
         # Compute formula result
         result = self.compute_formula(formula)
+        result = (result - np.min(result)) / (np.max(result) - np.min(result))
 
         # Resize the result to 400x300
         result_resized = cv2.resize(result, (400, 300))
