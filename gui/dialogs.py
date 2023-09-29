@@ -145,16 +145,18 @@ class RasterTransformDialog(QDialog):
 
     def on_ok_clicked(self):
         selected_index = self.indices_combobox.currentText()
+        formula = self.formula_input.text()
         if selected_index == "Custom":
             # If formula is custom, prompt the user for a name
             self.formula_name, ok = QInputDialog.getText(self, "Formula Name", "Enter the name for your custom formula:")
+            self.formula_equation = formula
             if not ok:
                 return  # User canceled the input dialog
         else:
             # If formula is predefined, get the name automatically
             self.formula_name = selected_index
 
-        formula = self.formula_input.text()
+
         self.final_result = self.compute_formula(formula)
 
         # Continue with any other logic you want after obtaining the formula name

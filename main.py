@@ -17,6 +17,7 @@ import sys
 class MultiSpectralIndice:
     def __init__(self, name):
         self.array = []
+        self.equation = ''
         self.name = name
         self.bounds = []
         self.img_path = ''
@@ -248,6 +249,7 @@ class ImageProcessingApp(QMainWindow):
         if dialog.exec_():
             # create new indice from user choices
             indice = MultiSpectralIndice(dialog.formula_name)
+            indice.equation = dialog.formula_equation
             indice.array = dialog.final_result
             indice.bounds = [np.amin(indice.array), np.amax(indice.array)]
             indice.palette = dialog.colormap_name
@@ -258,7 +260,7 @@ class ImageProcessingApp(QMainWindow):
             plt.imshow(indice.array, cmap=indice.palette, vmin=indice.bounds[0],
                        vmax=indice.bounds[1])  # set color limits to -1 and 1
             plt.colorbar()
-            plt.title(indice.name)
+            plt.title(indice.name + ' (' + indice.equation + ')')
             plt.axis('off')
             indice.img_path = os.path.join(sub_compo, f'{indice.name}.png')
             plt.savefig(indice.img_path, dpi=300, bbox_inches='tight')
