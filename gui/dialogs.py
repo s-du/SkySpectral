@@ -319,6 +319,10 @@ class AlignmentWindowArrow(QDialog):
         self.reference_image = QImage(ref_path)
         self.to_align_image = QImage(targ_path)
 
+        # Apply Canny edge detection
+        #self.reference_image = self.apply_canny_effect(self.reference_image)
+        #self.to_align_image = self.apply_canny_effect(self.to_align_image)
+
         # Resize 'to_align_image' to match the height of 'reference_image' while maintaining the aspect ratio
         target_width = int(self.to_align_image.width() * (self.reference_image.height() / self.to_align_image.height()))
         self.to_align_image = self.to_align_image.scaled(target_width, self.reference_image.height(),
@@ -397,6 +401,19 @@ class AlignmentWindowArrow(QDialog):
 
         self.setLayout(layout)
 
+    def apply_canny_effect(self, image):
+        # Convert QImage to cv2 format
+        cv_image = self.qimage_to_cv2(image)
+
+        # Apply Canny edge detection
+        edges = cv2.Canny(cv_image, 50, 200)  # 100 and 200 are lower and upper thresholds. Adjust if needed.
+
+        # Convert back to QImage and return
+        return self.cv2_to_qimage(edges)
+    def cv2_to_qimage(self, cv_img):
+        height, width = cv_img.shape
+        bytes_per_line = width
+        return QImage(cv_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
     def qimage_to_cv2(self, qimage):
         # Convert QImage to a format suitable for OpenCV
         width = qimage.width()
@@ -460,6 +477,10 @@ class AlignmentWindowArrow(QDialog):
         painter.drawImage(0, 0, self.reference_image)
         painter.setCompositionMode(QPainter.CompositionMode_Screen)
         painter.drawImage(self.x_offset, self.y_offset, self.to_align_image)
+
+        # Limit the displayed region to the dimensions of 'reference_image'
+        painter.setClipRect(0, 0, self.reference_image.width(), self.reference_image.height())
+
         painter.end()
 
         # Create QPixmap from the blended image
