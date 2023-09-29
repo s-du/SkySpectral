@@ -7,7 +7,7 @@ Coming next:
 - Image annotation
 
 ## Introduction
-SkySPectral is a simple tool for visualizing and processing multispectral imagery. It enables the alignment and combination of various sub-images (bands) to extract relevant data.
+SkySpectral is a simple tool for visualizing and processing multispectral imagery. It enables the alignment and combination of various sub-images (bands) to extract relevant data.
 
 \#Multispectral \#Open-CV \#Building diagnosis \#ImageProcessing 
 
@@ -24,7 +24,7 @@ SkySPectral is a simple tool for visualizing and processing multispectral imager
 The functionalities include:
 - Import Micasense output folder
 - Visualize bands with standard matplotlib color palettes
-- Align channels (R,G,B,NIR,Red-Edge) with an intuitive interface (especially critical for close-shots, as in building façades analyses)
+- Align channels (R,G,B,NIR,Red-Edge) to Pan-chromatic with an intuitive interface (especially critical for close-shots, as in building façades analyses)
 - Visualize composed shot (RGB image re-composed from individual channels, CIR - Color Infrared, etc.)
 - Create custom indices based on arithmetic operations on bands
 - Access typical vegetation indices such as NDVI
