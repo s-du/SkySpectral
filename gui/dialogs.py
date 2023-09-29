@@ -77,9 +77,52 @@ class RasterTransformDialog(QDialog):
         self.images = images
 
         # Colormap dropdown
+        self.palettes = [
+            'Greys_r',
+            'Greys',
+            'Spectral',
+            'Spectral_r',
+            'afmhot',
+            'afmhot_r',
+            'bwr',
+            'bwr_r',
+            'coolwarm',
+            'coolwarm_r',
+            'gnuplot2',
+            'gnuplot2_r',
+            'inferno',
+            'inferno_r',
+            'jet',
+            'jet_r',
+            'magma',
+            'magma_r',
+            'nipy_spectral',
+            'nipy_spectral_r',
+            'plasma',
+            'plasma_r',
+            'rainbow',
+            'rainbow_r',
+            'seismic',
+            'seismic_r',
+            'turbo',
+            'turbo_r',
+            'twilight',
+            'twilight_r',
+            'viridis',
+            'viridis_r',
+            'BrBG',
+            'BrBG_r',
+            'PRGn',
+            'PRGn_r',
+            'RdBu',
+            'RdBu_r',
+            'RdGy',
+            'RdGy_r',
+            'RdYlBu',
+            'RdYlBu_r'
+        ]
         self.colormap_dropdown = QComboBox(self)
-        self.colormaps = ["Spectral", "Viridis", "Greys"]
-        self.colormap_dropdown.addItems(self.colormaps)
+        self.colormap_dropdown.addItems(self.palettes)
         self.colormap_dropdown.currentIndexChanged.connect(self.update_preview)
         right_layout.addWidget(self.colormap_dropdown)
 
@@ -104,12 +147,15 @@ class RasterTransformDialog(QDialog):
         selected_index = self.indices_combobox.currentText()
         if selected_index == "Custom":
             # If formula is custom, prompt the user for a name
-            formula_name, ok = QInputDialog.getText(self, "Formula Name", "Enter the name for your custom formula:")
+            self.formula_name, ok = QInputDialog.getText(self, "Formula Name", "Enter the name for your custom formula:")
             if not ok:
                 return  # User canceled the input dialog
         else:
             # If formula is predefined, get the name automatically
-            formula_name = selected_index
+            self.formula_name = selected_index
+
+        formula = self.formula_input.text()
+        self.final_result = self.compute_formula(formula)
 
         # Continue with any other logic you want after obtaining the formula name
         # For example, save the formula, close the dialog, etc.
@@ -184,8 +230,8 @@ class RasterTransformDialog(QDialog):
         result_resized = cv2.resize(result, (400, 300))
 
         # Apply the colormap and visualize
-        colormap_name = self.colormap_dropdown.currentText()
-        colormap = cm.get_cmap(colormap_name)
+        self.colormap_name = self.colormap_dropdown.currentText()
+        colormap = cm.get_cmap(self.colormap_name)
         colored_result = (colormap(result_resized)[:, :, :3] * 255).astype(np.uint8)
         height, width, channel = colored_result.shape
         bytes_per_line = 3 * width
@@ -224,7 +270,7 @@ class RasterTransformDialog(QDialog):
                 result[np.isnan(result)] = 0
 
                 # Normalize the result to [0, 1] for visualization
-                result = (result - np.min(result)) / (np.max(result) - np.min(result))
+                # result = (result - np.min(result)) / (np.max(result) - np.min(result))
 
             except Exception as e:
                 print(f"Error computing formula: {e}")

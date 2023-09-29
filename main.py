@@ -19,7 +19,8 @@ class MultiSpectralIndice:
         self.array = []
         self.name = name
         self.bounds = []
-        img_path = ''
+        self.img_path = ''
+        self.palette = ''
 
 
 class ImageProcessingApp(QMainWindow):
@@ -96,7 +97,6 @@ class ImageProcessingApp(QMainWindow):
         self.imageviewer = wid.PhotoViewer(self)
         self.verticalLayout_2.addWidget(self.imageviewer)
 
-
         # Variables for our images
         self.base_dir = ""
         self.shots = []
@@ -123,7 +123,6 @@ class ImageProcessingApp(QMainWindow):
         self.band_combobox.currentIndexChanged.connect(self.update_display)
         self.palette_combobox.currentIndexChanged.connect(self.update_display)
         self.shot_list.itemClicked.connect(self.shot_selected)
-
 
     def add_icon(self, img_source, pushButton_object):
         pushButton_object.setIcon(QIcon(img_source))
@@ -153,9 +152,6 @@ class ImageProcessingApp(QMainWindow):
 
         self.band_combobox.setEnabled(True)
         self.palette_combobox.setEnabled(True)
-
-
-
 
     def prepare_agisoft(self):
         # Create the 'for Agisoft' folder
@@ -188,7 +184,6 @@ class ImageProcessingApp(QMainWindow):
                     dst_path = os.path.join(band_folder, filename)
                     shutil.copy(src_path, dst_path)
 
-
     def generate_thumbnail(self, img_path):
         thumbnail_size = (64, 64)
         image = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
@@ -197,7 +192,6 @@ class ImageProcessingApp(QMainWindow):
         q_img = QImage(image.data, width, height, QImage.Format_Grayscale16)
         pixmap = QPixmap.fromImage(q_img)
         return pixmap
-
 
     def shot_selected(self, item):
         # Load and display the shot corresponding to the clicked item
@@ -211,6 +205,9 @@ class ImageProcessingApp(QMainWindow):
             self.update_display()
 
     def create_main_indices(self, images_path):
+        """
+        Depreciated
+        """
         indices = []
         red = cv2.imread(images_path[0], cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
         red_edge = cv2.imread(images_path[1], cv2.IMREAD_GRAYSCALE).astype(float) / 255.0
@@ -221,23 +218,22 @@ class ImageProcessingApp(QMainWindow):
         # Calculate NDVI
         ndvi = MultiSpectralIndice('NDVI (Normalized Difference Vegetation Index)')
         ndvi.array = (nir - red) / (nir + red + 1e-10)  # added small value to prevent division by zero
-        ndvi.bounds = [-1,1]
+        ndvi.bounds = [-1, 1]
 
         # Calculate SR
         sr = MultiSpectralIndice('SR (Simple ratio)')
         sr.array = nir / (red + 1e-10)
-        sr.bounds = [0,1]
+        sr.bounds = [0, 1]
 
         # Calculate MSI (Moisture stress index)
         msi = MultiSpectralIndice('MSI (Moisture stress index)')
         msi.array = nir / (red_edge + 1e-10)
-        msi.bounds = [0,1]
+        msi.bounds = [0, 1]
 
         # Calculate NDWI (Normalized Difference Water Index)
         ndwi = MultiSpectralIndice('NDWI (Normalized Difference Water Index)')
         ndwi.array = (green - nir) / (green + nir + 1e-10)
-        ndwi.bounds = [-1,1]
-
+        ndwi.bounds = [-1, 1]
 
         indices.append(ndvi)
         indices.append(sr)
@@ -246,12 +242,29 @@ class ImageProcessingApp(QMainWindow):
 
         return indices
 
-
     def raster_transform(self):
         self.get_channels_paths()
         dialog = dia.RasterTransformDialog(self.images)
         if dialog.exec_():
-            pass
+            # create new indice from user choices
+            indice = MultiSpectralIndice(dialog.formula_name)
+            indice.array = dialog.final_result
+            indice.bounds = [np.amin(indice.array), np.amax(indice.array)]
+            indice.palette = dialog.colormap_name
+
+            # output an image
+            sub_compo = os.path.join(self.base_dir, self.selected_compo, 'composed')
+
+            plt.imshow(indice.array, cmap=indice.palette, vmin=indice.bounds[0],
+                       vmax=indice.bounds[1])  # set color limits to -1 and 1
+            plt.colorbar()
+            plt.title(indice.name)
+            plt.axis('off')
+            indice.img_path = os.path.join(sub_compo, f'{indice.name}.png')
+            plt.savefig(indice.img_path, dpi=300, bbox_inches='tight')
+            plt.clf()
+
+
 
     def create_compo_shots(self):
         self.get_channels_paths()
@@ -277,7 +290,6 @@ class ImageProcessingApp(QMainWindow):
         cir_image = cv2.merge((converted_images['G'], converted_images['R'], converted_images['NIR']))
         out_cir_path = os.path.join(sub_compo, 'cir.png')
         cv2.imwrite(out_cir_path, cir_image)
-
 
     def get_channels_paths(self):
         # Load individual channel images
@@ -355,7 +367,6 @@ class ImageProcessingApp(QMainWindow):
 
         height, width, _ = colored_image.shape
         q_img = QImage(colored_image.data, width, height, QImage.Format_RGBA8888)
-
 
         pixmap = QPixmap.fromImage(q_img)
         self.imageviewer.setPhoto(pixmap=pixmap)
@@ -518,7 +529,6 @@ class ImageProcessingApp(QMainWindow):
         save_path = os.path.splitext(dest_path)[0] + "_aligned.tif"
         cv2.imwrite(save_path, slid_image)
         """
-
 
 
 if __name__ == "__main__":
