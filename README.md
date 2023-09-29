@@ -2,7 +2,20 @@
 A simple tool to process multispectral images from the Micasense Rededge P
 
 ## Introduction
-SkySPectral is a simple tool for visualizing and processing multispectral imagery. It enables the alignment and combination of various sub-images.
+SkySPectral is a simple tool for visualizing and processing multispectral imagery. It enables the alignment and combination of various sub-images to extract relevant data.
+
+\#Multispectral \#Open-CV \#Building diagnosis \#ImageProcessing 
+
+**The project is still in pre-release, so do not hesitate to send your recommendations or the bugs you encountered!**
+
+<p align="center">
+    <a href="https://ibb.co/pQkkp0W"><img src="https://i.ibb.co/3vPPHrf/Capture-d-cran-2023-09-27-181906.png" alt="Capture-d-cran-2023-09-27-181906" border="0"></a>
+    
+    Processing multispectral image, from a folder
+</p>
+
+
+## Principle
 The functionalities include:
 - Import Micasense output folder
 - Visualize bands with standard matplotlib color palettes
@@ -13,20 +26,12 @@ The functionalities include:
 - Prepare the files for Agisoft Metashape (organize images in folders)
 - ...
 
-\#Multispectral \#Open-CV \#Building diagnosis \#ImageProcessing 
-
-**The project is still in pre-release, so do not hesitate to send your recommendations or the bugs you encountered!**
-
-
 <p align="center">
-    <a href="https://ibb.co/pQkkp0W"><img src="https://i.ibb.co/3vPPHrf/Capture-d-cran-2023-09-27-181906.png" alt="Capture-d-cran-2023-09-27-181906" border="0"></a>
+    <a href="https://ibb.co/Dg8Rm1g"><img src="https://i.ibb.co/h1Zmrg1/Capture-d-cran-2023-09-29-095333.png" alt="Capture-d-cran-2023-09-29-095333" border="0"></a>
     
-    Processing multispectral image, from a folder
+    Creating custom indices
 </p>
 
-
-## Principle
-(to be completed)
 
 
 ## Installation instructions
