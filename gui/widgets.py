@@ -248,6 +248,103 @@ def create_line_iterator(P1, P2, img):
     return itbuffer
 
 
+class DoubleSlider(QSlider):
+    doubleValueChanged = Signal(int, int)
+
+    def __init__(self, *args, **kwargs):
+        super(DoubleSlider, self).__init__(*args, **kwargs)
+        self._low = self.minimum()
+        self._high = self.maximum()
+        self.pressed_control = QStyle.SC_None
+        self.setOrientation(Qt.Horizontal)
+
+    def low(self):
+        return self._low
+
+    def setLow(self, low):
+        if low != self._low:
+            self._low = low
+            self.doubleValueChanged.emit(self._low, self._high)
+            self.update()
+
+    def high(self):
+        return self._high
+
+    def setHigh(self, high):
+        if high != self._high:
+            self._high = high
+            self.doubleValueChanged.emit(self._low, self._high)
+            self.update()
+
+    def mousePressEvent(self, event):
+        event.accept()
+
+        # Determine which thumb is closer to the mouse press position
+        distance_to_low = abs(event.x() - self._pixelPos(self._low))
+        distance_to_high = abs(event.x() - self._pixelPos(self._high))
+
+        if distance_to_low < distance_to_high:
+            self.pressed_control = "low"
+            self._low = self.style().sliderValueFromPosition(self.minimum(), self.maximum(), event.x(), self.width())
+        else:
+            self.pressed_control = "high"
+            self._high = self.style().sliderValueFromPosition(self.minimum(), self.maximum(), event.x(), self.width())
+
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        event.accept()
+        new_position = self.style().sliderValueFromPosition(self.minimum(), self.maximum(), event.x(), self.width())
+
+        if self.pressed_control == "low":
+            if new_position <= self._high:
+                self.setLow(new_position)
+        elif self.pressed_control == "high":
+            if new_position >= self._low:
+                self.setHigh(new_position)
+
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        self.pressed_control = None
+        self.update()
+
+    def _pixelPos(self, value):
+        """ Convert slider value to pixel position """
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        return self.style().sliderPositionFromValue(self.minimum(), self.maximum(), value, self.width())
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+
+        # Draw the background
+        background = QColor(0, 0, 0, 50)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(background)
+        painter.drawRect(0, self.height() / 4, self.width(), self.height() / 2)
+
+        # Draw the range
+        groove_color = self.palette().color(self.backgroundRole()).darker(110)
+        painter.setBrush(groove_color)
+        slider_range = QStyleOptionSlider()
+        self.initStyleOption(slider_range)
+        width = self.style().pixelMetric(QStyle.PM_SliderLength, slider_range, self)
+        min_loc = self.style().sliderPositionFromValue(self.minimum(), self.maximum(), self.low(), self.width())
+        max_loc = self.style().sliderPositionFromValue(self.minimum(), self.maximum(), self.high(), self.width())
+        painter.drawRect(min_loc, self.height() / 4, max_loc - min_loc, self.height() / 2)
+
+        # Draw the handles
+        handle = QStyleOptionSlider()
+        self.initStyleOption(handle)
+        handle.sliderPosition = self.low()
+        handle.subControls = QStyle.SC_SliderHandle
+        self.style().drawComplexControl(QStyle.CC_Slider, handle, painter, self)
+
+        handle.sliderPosition = self.high()
+        self.style().drawComplexControl(QStyle.CC_Slider, handle, painter, self)
+
+
 class MagnifyingGlass(QGraphicsEllipseItem):
     def __init__(self, size=200, parent=None):
         self._size = size

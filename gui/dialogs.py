@@ -8,7 +8,7 @@ import numpy as np
 import resources as res
 import re
 import matplotlib.cm as cm
-
+import matplotlib.pyplot as plt
 
 class RasterTransformDialog(QDialog):
     def __init__(self, images):
@@ -134,6 +134,26 @@ class RasterTransformDialog(QDialog):
         self.graphics_view.setScene(self.graphics_scene)
         right_layout.addWidget(self.graphics_view)
 
+        # sliders
+        # Create the labels
+        self.low_value_label = QLabel('0')
+        self.high_value_label = QLabel('1')
+
+        self.range_slider = wid.DoubleSlider(Qt.Horizontal, self)
+        self.range_slider.setRange(0, 100)
+        self.range_slider.setLow(0)
+        self.range_slider.setHigh(100)
+        self.range_slider.doubleValueChanged.connect(self.update_scale)
+        self.range_slider.doubleValueChanged.connect(self.update_slider_labels)
+
+        slider_combi = QVBoxLayout()
+
+        slider_combi.addWidget(self.low_value_label)
+        slider_combi.addWidget(self.range_slider)
+        slider_combi.addWidget(self.high_value_label)
+        right_layout.addLayout(slider_combi)
+
+
         # Connect formula input changes to the preview update function
         self.formula_input.textChanged.connect(self.update_preview)
 
@@ -142,6 +162,10 @@ class RasterTransformDialog(QDialog):
         self.button_box.accepted.connect(self.on_ok_clicked)
         self.button_box.rejected.connect(self.reject)
         right_layout.addWidget(self.button_box)
+
+    def update_slider_labels(self, low_value, high_value):
+        self.low_value_label.setText(str(low_value / 100))
+        self.high_value_label.setText(str(high_value / 100))
 
     def on_ok_clicked(self):
         selected_index = self.indices_combobox.currentText()
@@ -216,6 +240,43 @@ class RasterTransformDialog(QDialog):
 
         return True
 
+    def range_changed(self, low, high):
+        # Implement how the range change affects other components
+        pass
+
+
+    def update_scale(self):
+        print('update scale!')
+        # Get the range selected by the slider
+        low_val = self.range_slider.low() / 100
+        high_val = self.range_slider.high() / 100
+        print(low_val, high_val)
+
+        # Adjust the result values based on the selected range
+        result_resized = np.interp(self.result, (low_val, high_val), (0, 1))
+        result_resized = np.clip(result_resized, 0, 1)  # Ensure values are still in [0, 1]
+
+        # Resize the result to 400x300
+        result_resized = cv2.resize(result_resized, (400, 300))
+
+        # Apply the colormap and visualize
+        self.colormap_name = self.colormap_dropdown.currentText()
+        colormap = cm.get_cmap(self.colormap_name)
+        colored_result = (colormap(result_resized)[:, :, :3] * 255).astype(np.uint8)
+        height, width, channel = colored_result.shape
+        bytes_per_line = 3 * width
+        q_image = QImage(colored_result.data, width, height, bytes_per_line, QImage.Format_RGB888)
+
+        # Update graphics scene
+        pixmap = QPixmap.fromImage(q_image)
+        self.graphics_scene.clear()
+        item = self.graphics_scene.addPixmap(pixmap)
+
+        # Compute scaling factors and scale the content
+        x_scale = 400 / item.boundingRect().width()
+        y_scale = 300 / item.boundingRect().height()
+        self.graphics_view.setTransform(QTransform().scale(x_scale, y_scale))
+
     def update_preview(self):
         # Get current formula
         formula = self.formula_input.text()
@@ -227,8 +288,18 @@ class RasterTransformDialog(QDialog):
             return
 
         # Compute formula result
-        result = self.compute_formula(formula)
-        result = (result - np.min(result)) / (np.max(result) - np.min(result))
+        self.result = self.compute_formula(formula)
+        # Provide values to slider
+        low_val = np.min(self.result)
+        high_val = np.max(self.result)
+        print(low_val, high_val)
+        self.range_slider.setMaximum(high_val*100)
+        self.range_slider.setMinimum(low_val * 100)
+        self.range_slider.setLow(low_val*100)
+        self.range_slider.setHigh(high_val*100)
+
+        # normalize
+        result = (self.result - np.min(self.result)) / (np.max(self.result) - np.min(self.result))
 
         # Resize the result to 400x300
         result_resized = cv2.resize(result, (400, 300))
@@ -251,6 +322,22 @@ class RasterTransformDialog(QDialog):
         y_scale = 300 / item.boundingRect().height()
         self.graphics_view.setTransform(QTransform().scale(x_scale, y_scale))
 
+    def create_histogram(self, data):
+        # Create a histogram using matplotlib
+        fig, ax = plt.subplots(figsize=(4, 3))
+        data = self.result
+        ax.hist(data.flatten(), bins=50, range=(np.min(data), np.max(data)), color='blue', alpha=0.7)
+        ax.set_xlabel('Value')
+        ax.set_ylabel('Pixel Count')
+
+        # Convert the Matplotlib figure to a QPixmap
+        fig.canvas.draw()
+        buf = fig.canvas.buffer_rgba()
+        q_image = QImage(buf, buf.shape[1], buf.shape[0], QImage.Format_RGBA8888)
+        pixmap = QPixmap.fromImage(q_image)
+
+        plt.close(fig)  # Close the matplotlib figure
+        return pixmap
 
     def compute_formula(self, formula):
         # Sort band names by length in descending order
