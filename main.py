@@ -200,6 +200,7 @@ class ImageProcessingApp(QMainWindow):
 
         if os.path.isdir(os.path.join(self.base_dir, self.selected_shot)):
             self.actionShowCompo.setEnabled(True)
+            self.actionAddTransform.setEnabled(True)
             self.selected_compo = item.text()
         else:
             self.actionShowCompo.setEnabled(False)
