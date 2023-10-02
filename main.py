@@ -203,6 +203,7 @@ class ImageProcessingApp(QMainWindow):
             self.selected_compo = item.text()
         else:
             self.actionShowCompo.setEnabled(False)
+            self.actionAddTransform.setEnabled(False)
             self.update_display()
 
     def create_main_indices(self, images_path):
